@@ -1,3 +1,5 @@
+
+
 export const translations = {
   zh: {
     appName: "MangaType Live",
@@ -74,6 +76,8 @@ export const translations = {
     generatedHtml: "生成的 HTML",
     close: "关闭",
     copyHtml: "复制 HTML",
+    baseUrlHint: "格式如 https://api.provider.com 或 https://api.provider.com/v1 均可。",
+    modelFilterHint: "输入部分字符过滤列表；留空或输入完整模型名则显示全部。",
     helpDocs: {
       title: "使用指南",
       intro: "MangaType Live 是一个网页原生的漫画嵌字工具，集成了 AI 翻译和自动化排版功能。",
@@ -185,6 +189,8 @@ export const translations = {
     generatedHtml: "Generated HTML",
     close: "Close",
     copyHtml: "Copy HTML",
+    baseUrlHint: "Format like https://api.provider.com or https://api.provider.com/v1 both work.",
+    modelFilterHint: "Partial text filters list. Empty or exact match shows all.",
     helpDocs: {
       title: "User Guide",
       intro: "MangaType Live is a web-native comic typesetting tool with integrated AI translation and automated layout features.",

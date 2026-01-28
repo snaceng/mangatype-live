@@ -1,6 +1,8 @@
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ImageState, AIConfig } from '../types';
-import { X, Trash2, Image as ImageIcon, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+import { X, Trash2, Image as ImageIcon, CheckCircle, Loader2, XCircle } from 'lucide-react';
 import { t } from '../services/i18n';
 
 interface GalleryProps {
@@ -67,11 +69,14 @@ export const Gallery: React.FC<GalleryProps> = ({ images, currentId, config, onS
             >
               <img src={img.url} className="w-full h-full object-cover" alt="thumb" />
               
-              {/* Status Indicator */}
-              <div className="absolute bottom-1 right-1">
+              {/* Status Indicator - z-10 to stay above filename overlay */}
+              <div 
+                className="absolute bottom-1 right-1 z-10"
+                title={img.status === 'error' ? (img.errorMessage || 'Error') : ''}
+              >
                  {img.status === 'processing' && <Loader2 size={16} className="text-blue-400 animate-spin bg-gray-900/50 rounded-full p-0.5" />}
                  {img.status === 'done' && <CheckCircle size={16} className="text-green-400 bg-gray-900/50 rounded-full" />}
-                 {img.status === 'error' && <AlertCircle size={16} className="text-red-400 bg-gray-900/50 rounded-full" />}
+                 {img.status === 'error' && <XCircle size={16} className="text-red-400 bg-gray-900/50 rounded-full" />}
               </div>
 
               {/* Delete Overlay */}
@@ -80,7 +85,7 @@ export const Gallery: React.FC<GalleryProps> = ({ images, currentId, config, onS
                   e.stopPropagation();
                   onDelete(img.id);
                 }}
-                className="absolute top-1 right-1 bg-black/60 hover:bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-1 right-1 bg-black/60 hover:bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20"
               >
                 <X size={12} />
               </button>

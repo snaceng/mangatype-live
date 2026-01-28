@@ -1,3 +1,5 @@
+
+
 import { GoogleGenAI, FunctionDeclaration, Type, FunctionCallingConfigMode } from "@google/genai";
 import { AIConfig, DetectedBubble } from "../types";
 
@@ -92,7 +94,7 @@ const cleanDetectedText = (text: string): string => {
  * 3. Stray text before/after the JSON object
  */
 const extractJsonFromText = (text: string): any => {
-  if (!text) return {};
+  if (!text) throw new Error("Empty response received from AI");
   let content = text.trim();
   
   try {
@@ -112,12 +114,39 @@ const extractJsonFromText = (text: string): any => {
         try {
           return JSON.parse(cleaned);
         } catch (e3) {
-          console.error("JSON extraction failed", e3);
+           // proceed to throw
         }
       }
     }
-    throw new Error("Could not parse JSON from response: " + content.substring(0, 100));
+    throw new Error("Could not parse JSON structure from AI response. Raw content: " + content.substring(0, 50) + "...");
   }
+};
+
+/**
+ * STRICT VALIDATOR: Ensures the AI response actually contains the data we need.
+ * If it doesn't, we throw an error so the UI shows a red 'X' instead of a green check.
+ */
+const validateBubblesArray = (data: any): any[] => {
+    if (!data || typeof data !== 'object') {
+        throw new Error("AI response is not a valid JSON object");
+    }
+    if (!('bubbles' in data)) {
+        throw new Error("AI response missing 'bubbles' key. The model failed to follow the schema.");
+    }
+    if (!Array.isArray(data.bubbles)) {
+        throw new Error("AI response 'bubbles' is not an array.");
+    }
+    return data.bubbles;
+};
+
+/**
+ * Normalizes OpenAI-compatible base URLs.
+ * Ensures the URL ends with /v1 if usually required, while respecting users who provide it.
+ */
+const getOpenAiBaseUrl = (baseUrl: string): string => {
+  const cleaned = baseUrl.replace(/\/+$/, '');
+  if (cleaned.endsWith('/v1')) return cleaned;
+  return `${cleaned}/v1`;
 };
 
 // --- API Methods ---
@@ -136,13 +165,18 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
         .map((m: any) => m.name.replace('models/', ''))
         .filter((n: string) => n.includes('gemini') && !prohibitedModels.includes(n));
     } else {
-      const baseUrl = config.baseUrl.replace(/\/+$/, '');
+      const baseUrl = getOpenAiBaseUrl(config.baseUrl);
       const res = await fetch(`${baseUrl}/models`, { headers: { 'Authorization': `Bearer ${config.apiKey}` } });
       const data = await res.json();
       return (data.data || []).map((m: any) => m.id);
     }
   } catch (e) {
-    return ['gemini-3-flash-preview', 'gemini-3-pro-preview'];
+    // FIX: Only return Gemini defaults for Gemini provider.
+    // For OpenAI, we return empty list to indicate failure/no models, rather than misleading Gemini models.
+    if (config.provider === 'gemini') {
+      return ['gemini-3-flash-preview', 'gemini-3-pro-preview'];
+    }
+    return [];
   }
 };
 
@@ -161,7 +195,8 @@ export const polishDialogue = async (text: string, style: 'dramatic' | 'casual' 
     });
     return cleanDetectedText(response.text?.trim() || text);
   } else {
-    const response = await fetch(`${config.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+    const baseUrl = getOpenAiBaseUrl(config.baseUrl);
+    const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.apiKey}` },
       body: JSON.stringify({
@@ -283,11 +318,13 @@ export const detectAndTypesetComic = async (base64Image: string, config: AIConfi
       });
 
       if (response.functionCalls && response.functionCalls.length > 0) {
-        const bubbles = (response.functionCalls[0].args as any).bubbles || [];
+        const args = response.functionCalls[0].args as any;
+        const bubbles = validateBubblesArray(args); // Will throw if 'bubbles' missing
         return bubbles.map((b: any) => ({ ...b, text: cleanDetectedText(b.text) }));
       }
     } catch (e: any) {
       console.warn("Tier 1 (Function Calling) failed:", e.message);
+      // Explicitly proceed to Tier 2
     }
 
     // Tier 2: Official JSON Mode
@@ -305,13 +342,14 @@ export const detectAndTypesetComic = async (base64Image: string, config: AIConfi
         }
       });
       const json = extractJsonFromText(fallbackResponse.text || "{}");
-      return (json.bubbles || []).map((b: any) => ({ ...b, text: cleanDetectedText(b.text) }));
+      const bubbles = validateBubblesArray(json); // Will throw if 'bubbles' missing
+      return bubbles.map((b: any) => ({ ...b, text: cleanDetectedText(b.text) }));
     } catch (e: any) {
       console.warn("Tier 2 (JSON Mode) failed:", e.message);
+      // Explicitly proceed to Tier 3
     }
 
     // Tier 3: Raw Text Extraction (Dumb Luck Mode)
-    // No special flags, just a prompt and manual parsing.
     try {
       const rawResponse = await ai.models.generateContent({
         model: config.model || 'gemini-3-flash-preview',
@@ -323,15 +361,17 @@ export const detectAndTypesetComic = async (base64Image: string, config: AIConfi
         }
       });
       const json = extractJsonFromText(rawResponse.text || "{}");
-      return (json.bubbles || []).map((b: any) => ({ ...b, text: cleanDetectedText(b.text) }));
+      const bubbles = validateBubblesArray(json); // Will throw if 'bubbles' missing
+      return bubbles.map((b: any) => ({ ...b, text: cleanDetectedText(b.text) }));
     } catch (e: any) {
       console.error("Tier 3 (Raw Text) failed too:", e.message);
-      throw new Error("AI failed to return structured data even after multiple attempts. Please try a more capable model.");
+      // This final throw ensures App.tsx receives an error status
+      throw new Error("AI failed to return structured data. " + e.message);
     }
 
   } else {
     // OpenAI Provider
-    const baseUrl = config.baseUrl.replace(/\/+$/, '');
+    const baseUrl = getOpenAiBaseUrl(config.baseUrl);
     
     try {
       const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -355,18 +395,26 @@ export const detectAndTypesetComic = async (base64Image: string, config: AIConfi
       });
 
       const resData = await response.json();
+      
+      // OpenAI Error from API
+      if (resData.error) {
+          throw new Error("OpenAI API Error: " + resData.error.message);
+      }
+
       const toolCalls = resData.choices?.[0]?.message?.tool_calls;
       
       if (toolCalls && toolCalls.length > 0) {
         const args = JSON.parse(toolCalls[0].function.arguments);
-        return (args.bubbles || []).map((b: any) => ({ ...b, text: cleanDetectedText(b.text) }));
+        const bubbles = validateBubblesArray(args);
+        return bubbles.map((b: any) => ({ ...b, text: cleanDetectedText(b.text) }));
       } else {
         const content = resData.choices?.[0]?.message?.content;
         const json = extractJsonFromText(content || "{}");
-        return (json.bubbles || []).map((b: any) => ({ ...b, text: cleanDetectedText(b.text) }));
+        const bubbles = validateBubblesArray(json);
+        return bubbles.map((b: any) => ({ ...b, text: cleanDetectedText(b.text) }));
       }
-    } catch (e) {
-      throw new Error("Failed to process OpenAI vision request.");
+    } catch (e: any) {
+      throw new Error("Failed to process OpenAI vision request: " + e.message);
     }
   }
 };

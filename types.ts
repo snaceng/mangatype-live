@@ -1,4 +1,5 @@
 
+
 export interface Bubble {
   id: string;
   x: number; // Center X percentage 0-100
@@ -34,6 +35,7 @@ export interface ImageState {
   height: number;
   bubbles: Bubble[];
   status: 'idle' | 'processing' | 'done' | 'error';
+  errorMessage?: string; // Reason for failure
 }
 
 export type FontOption = {

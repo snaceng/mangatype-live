@@ -1,3 +1,5 @@
+
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { BubbleEditor } from './components/BubbleEditor';
 import { SettingsModal } from './components/SettingsModal';
@@ -640,7 +642,7 @@ const App: React.FC = () => {
 
   // Batch / AI Logic
   const runDetectionForImage = async (img: ImageState) => {
-     setImages(prev => prev.map(p => p.id === img.id ? { ...p, status: 'processing' } : p));
+     setImages(prev => prev.map(p => p.id === img.id ? { ...p, status: 'processing', errorMessage: undefined } : p));
      try {
        const detected = await detectAndTypesetComic(img.base64, aiConfig);
        const newBubbles: Bubble[] = detected.map(d => ({
@@ -653,9 +655,9 @@ const App: React.FC = () => {
         rotation: d.rotation || 0, // AI detected rotation or 0
       }));
       setImages(prev => prev.map(p => p.id === img.id ? { ...p, bubbles: newBubbles, status: 'done' } : p));
-     } catch (e) {
+     } catch (e: any) {
        console.error("AI Error for " + img.name, e);
-       setImages(prev => prev.map(p => p.id === img.id ? { ...p, status: 'error' } : p));
+       setImages(prev => prev.map(p => p.id === img.id ? { ...p, status: 'error', errorMessage: e.message || 'Unknown error occurred' } : p));
      }
   };
 

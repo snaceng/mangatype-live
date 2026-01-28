@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+
+
+import React, { useState, useEffect, useRef } from 'react';
 import { AIConfig, AIProvider } from '../types';
-import { Settings, X, RefreshCw, CheckCircle, AlertCircle, Server, RotateCcw, Type, ScanText, Globe, RotateCw } from 'lucide-react';
+import { Settings, X, RefreshCw, CheckCircle, AlertCircle, Server, RotateCcw, Type, ScanText, Globe, RotateCw, ChevronDown, Check } from 'lucide-react';
 import { fetchAvailableModels, DEFAULT_SYSTEM_PROMPT } from '../services/geminiService';
 import { t } from '../services/i18n';
 
@@ -15,26 +17,59 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Track the current provider to prevent race conditions with async fetches
+  const activeProviderRef = useRef<string>(config.provider);
   
   const lang = localConfig.language;
 
+  // Click outside to close dropdown
   useEffect(() => {
-    if (localConfig.provider === 'gemini') {
-        handleFetchModels();
-    } else {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Handle Provider Switching effects
+  useEffect(() => {
+    activeProviderRef.current = localConfig.provider;
+    
+    // Reset state immediately when switching providers
+    setLoadingModels(false);
+    setError(null);
+
+    // Disable automatic fetch. Only clear if not Gemini (since Gemini might use defaults or user can refresh manually).
+    if (localConfig.provider !== 'gemini') {
         setAvailableModels([]);
     }
   }, [localConfig.provider]);
 
   const handleFetchModels = async () => {
+    const currentProvider = localConfig.provider;
     setLoadingModels(true);
     setError(null);
+    
     try {
       const models = await fetchAvailableModels(localConfig);
+      
+      // If user switched provider while fetching, ignore results
+      if (activeProviderRef.current !== currentProvider) return;
+
       if (models.length > 0) {
         setAvailableModels(models);
-        if (!models.includes(localConfig.model) && localConfig.model === '') {
-            setLocalConfig(prev => ({ ...prev, model: models[0] }));
+        // Auto-open dropdown to show results
+        setIsDropdownOpen(true);
+        
+        // If current model is empty, select the first one
+        if (!localConfig.model) {
+             setLocalConfig(prev => ({ ...prev, model: models[0] }));
         }
       } else {
         if (localConfig.provider === 'openai') {
@@ -44,9 +79,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
         }
       }
     } catch (e) {
-      setError(t('failedFetch', lang));
+      if (activeProviderRef.current === currentProvider) {
+        setError(t('failedFetch', lang));
+      }
     } finally {
-      setLoadingModels(false);
+      if (activeProviderRef.current === currentProvider) {
+        setLoadingModels(false);
+      }
     }
   };
 
@@ -55,13 +94,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
       ...prev,
       provider,
       baseUrl: provider === 'gemini' ? '' : (prev.baseUrl || 'https://api.openai.com/v1'),
-      model: provider === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-4o'
+      // Remove default model for OpenAI, keep for Gemini
+      model: provider === 'gemini' ? 'gemini-3-flash-preview' : ''
     }));
   };
 
   const resetPrompt = () => {
       setLocalConfig(prev => ({ ...prev, systemPrompt: DEFAULT_SYSTEM_PROMPT }));
   };
+
+  // Logic to determine which models to display in the list
+  const getDisplayedModels = () => {
+      const current = localConfig.model.trim().toLowerCase();
+      if (!current) return availableModels;
+
+      const isExactMatch = availableModels.some(m => m.toLowerCase() === current);
+      if (isExactMatch) return availableModels;
+
+      const filtered = availableModels.filter(m => m.toLowerCase().includes(current));
+      return filtered.length > 0 ? filtered : availableModels;
+  };
+
+  const displayedModels = getDisplayedModels();
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
@@ -75,7 +129,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
           </button>
         </div>
 
-        <div className="p-6 space-y-6 overflow-y-auto">
+        <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar">
           
           {/* Language Selection */}
           <div className="space-y-2">
@@ -147,6 +201,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
                     placeholder="https://api.openai.com/v1"
                     className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:border-green-500 outline-none"
                   />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                     {t('baseUrlHint', lang)}
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400 font-medium">{t('apiKey', lang)}</label>
@@ -161,8 +218,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
             </>
           )}
 
-          {/* Model Selection */}
-          <div className="space-y-2">
+          {/* Model Selection (Custom Combobox) */}
+          <div className="space-y-2" ref={dropdownRef}>
             <div className="flex justify-between items-end">
                 <label className="text-sm text-gray-400 font-medium">{t('modelSelection', lang)}</label>
                 <button 
@@ -176,19 +233,55 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
             </div>
             
             <div className="relative">
-                <input
-                    type="text"
-                    list="model-options"
-                    value={localConfig.model}
-                    onChange={(e) => setLocalConfig({ ...localConfig, model: e.target.value })}
-                    placeholder="Select or type model name..."
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none placeholder-gray-600"
-                />
-                <datalist id="model-options">
-                    {availableModels.map(m => <option key={m} value={m} />)}
-                </datalist>
+                <div className="relative">
+                    <input
+                        type="text"
+                        value={localConfig.model}
+                        onChange={(e) => {
+                            setLocalConfig({ ...localConfig, model: e.target.value });
+                            setIsDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsDropdownOpen(true)}
+                        placeholder="Select or type model name..."
+                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 pr-8 text-sm text-white focus:border-blue-500 outline-none placeholder-gray-600"
+                    />
+                    <button 
+                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                        tabIndex={-1}
+                    >
+                        <ChevronDown size={16} className={`transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                </div>
+
+                {/* Custom Dropdown */}
+                {isDropdownOpen && availableModels.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 styled-scrollbar">
+                        {displayedModels.map(m => (
+                            <button
+                                key={m}
+                                onClick={() => {
+                                    setLocalConfig({ ...localConfig, model: m });
+                                    setIsDropdownOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700 hover:text-white flex justify-between items-center group"
+                            >
+                                <span>{m}</span>
+                                {localConfig.model === m && <Check size={14} className="text-green-500" />}
+                            </button>
+                        ))}
+                        {displayedModels.length === 0 && (
+                             <div className="px-3 py-2 text-xs text-gray-500 italic text-center">
+                                No matches found in list
+                             </div>
+                        )}
+                    </div>
+                )}
             </div>
             {error && <div className="text-xs text-red-400 flex items-center gap-1"><AlertCircle size={12}/> {error}</div>}
+            <p className="text-[10px] text-gray-500 mt-1">
+               {t('modelFilterHint', lang)}
+            </p>
           </div>
 
           {/* AI Rotation Toggle (New) */}
