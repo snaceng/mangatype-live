@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { AIConfig, AIProvider, CustomMessage } from '../types';
-import { Settings, X, RefreshCw, CheckCircle, AlertCircle, Server, RotateCcw, Type, ScanText, Globe, RotateCw, ChevronDown, Check, MessageSquarePlus, Trash2, Plus, Scan } from 'lucide-react';
+import { Settings, X, RefreshCw, CheckCircle, AlertCircle, Server, RotateCcw, Type, ScanText, Globe, RotateCw, ChevronDown, Check, MessageSquarePlus, Trash2, Plus, Scan, Pipette } from 'lucide-react';
 import { fetchAvailableModels, DEFAULT_SYSTEM_PROMPT } from '../services/geminiService';
 import { t } from '../services/i18n';
 
@@ -380,6 +380,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
              </div>
              <p className="text-[10px] text-gray-500">
                 {t('allowAiRotationHint', lang)}
+             </p>
+          </div>
+
+          {/* Auto Background Detection Toggle */}
+          <div className="space-y-3 p-4 bg-gray-900/50 rounded-lg border border-gray-700">
+             <div className="flex justify-between items-center">
+                 <div className="flex items-center gap-2">
+                    <Pipette size={16} className="text-cyan-400" />
+                    <label className="text-sm text-gray-300 font-medium">{t('autoDetectBackground', lang)}</label>
+                 </div>
+                 <div className="relative inline-block w-10 h-5 align-middle select-none transition duration-200 ease-in">
+                    <input 
+                      type="checkbox" 
+                      name="toggle-bg-detect" 
+                      id="bg-detect-toggle" 
+                      checked={localConfig.autoDetectBackground !== false} // Default true if undefined
+                      onChange={(e) => setLocalConfig({...localConfig, autoDetectBackground: e.target.checked})}
+                      className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out checked:translate-x-5 checked:border-cyan-500"
+                    />
+                    <label htmlFor="bg-detect-toggle" className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors ${localConfig.autoDetectBackground !== false ? 'bg-cyan-500' : 'bg-gray-600'}`}></label>
+                 </div>
+             </div>
+             <p className="text-[10px] text-gray-500">
+                {t('autoDetectBackgroundHint', lang)}
              </p>
           </div>
 

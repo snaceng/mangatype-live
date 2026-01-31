@@ -27,7 +27,8 @@ const DEFAULT_CONFIG: AIConfig = {
   language: 'zh', // Default to Chinese
   customMessages: [
     { role: 'user', content: '翻译' }
-  ]
+  ],
+  autoDetectBackground: false, // Default to false
 };
 
 // Updated createBubble to accept a default font size
@@ -82,9 +83,10 @@ interface BubbleLayerProps {
   onResizeStart: (e: React.MouseEvent, handle: HandleType) => void;
   onUpdate: (id: string, updates: Partial<Bubble>) => void;
   onDelete: () => void;
+  onTriggerAutoColor: (id: string) => void; // New prop for wheel events
 }
 
-const BubbleLayer: React.FC<BubbleLayerProps> = React.memo(({ bubble, isSelected, onMouseDown, onResizeStart, onUpdate, onDelete }) => {
+const BubbleLayer: React.FC<BubbleLayerProps> = React.memo(({ bubble, isSelected, onMouseDown, onResizeStart, onUpdate, onDelete, onTriggerAutoColor }) => {
   const divRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef(bubble);
   bubbleRef.current = bubble;
@@ -119,6 +121,8 @@ const BubbleLayer: React.FC<BubbleLayerProps> = React.memo(({ bubble, isSelected
                 width: parseFloat(newWidth.toFixed(1)),
                 height: parseFloat(newHeight.toFixed(1))
             });
+            // Trigger auto color detection on resize (debounced by parent)
+            onTriggerAutoColor(currentBubble.id);
         }
       }
     };
@@ -127,7 +131,7 @@ const BubbleLayer: React.FC<BubbleLayerProps> = React.memo(({ bubble, isSelected
     return () => {
       el.removeEventListener('wheel', handleWheel);
     };
-  }, [isSelected, onUpdate]);
+  }, [isSelected, onUpdate, onTriggerAutoColor]);
 
   return (
     <div
@@ -276,6 +280,10 @@ const App: React.FC = () => {
     future: []
   });
 
+  // Use a ref to access latest history inside event handlers without dependencies
+  const historyRef = useRef(history);
+  historyRef.current = history;
+
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [selectedBubbleId, setSelectedBubbleId] = useState<string | null>(null);
   const [selectedMaskId, setSelectedMaskId] = useState<string | null>(null); // New Selection for Masks
@@ -299,6 +307,7 @@ const App: React.FC = () => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (!parsed.customMessages) parsed.customMessages = DEFAULT_CONFIG.customMessages;
+        // Merge defaults
         return { ...DEFAULT_CONFIG, ...parsed };
       }
     } catch (e) { console.warn("Failed to load settings", e); }
@@ -309,12 +318,19 @@ const App: React.FC = () => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(aiConfig)); } catch (e) { console.warn("Failed to save settings", e); }
   }, [aiConfig]);
 
+  // Use a ref for config too
+  const aiConfigRef = useRef(aiConfig);
+  aiConfigRef.current = aiConfig;
+
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   
+  // Timer Ref for debounced color detection
+  const detectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Drag Logic Ref
   const dragRef = useRef<{ 
     mode: 'move' | 'resize' | 'drawing';
@@ -527,6 +543,86 @@ const App: React.FC = () => {
   const handleToggleSkip = useCallback((imgId: string) => {
     setImages(prev => prev.map(img => img.id === imgId ? { ...img, skipped: !img.skipped } : img));
   }, []);
+
+  // --- AUTO DETECT COLOR LOGIC ---
+
+  const triggerAutoColorDetection = useCallback((bubbleId: string) => {
+      if (aiConfigRef.current.autoDetectBackground === false || !currentId) return;
+
+      if (detectionTimerRef.current) clearTimeout(detectionTimerRef.current);
+
+      detectionTimerRef.current = setTimeout(async () => {
+          // Use refs to get latest state without closure staleness
+          const imagesSnapshot = historyRef.current.present;
+          const imgState = imagesSnapshot.find(i => i.id === currentId);
+          
+          if (imgState) {
+              const bubble = imgState.bubbles.find(b => b.id === bubbleId);
+              
+              if (bubble && bubble.width >= 1 && bubble.height >= 1) {
+                  const detectedColor = await detectBubbleColor(
+                      imgState.url || `data:image/png;base64,${imgState.base64}`,
+                      bubble.x, bubble.y, bubble.width, bubble.height
+                  );
+                  
+                  // Apply color using functional update to ensure no race conditions
+                  setImages(prev => prev.map(img => 
+                      img.id === currentId ? {
+                          ...img,
+                          bubbles: img.bubbles.map(b => b.id === bubbleId ? { ...b, backgroundColor: detectedColor } : b)
+                      } : img
+                  ));
+              }
+          }
+      }, 300);
+  }, [currentId]); // Only depends on currentId, refs handle the rest
+
+  // --- GLOBAL COLOR ACTIONS ---
+
+  const handleGlobalColorReset = () => {
+    setImages(prev => prev.map(img => ({
+        ...img,
+        bubbles: img.bubbles.map(b => ({ ...b, backgroundColor: '#ffffff' }))
+    })));
+  };
+
+  const handleGlobalColorDetection = async () => {
+    if (isProcessingBatch) return;
+
+    setIsProcessingBatch(true);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+        // Iterate over a snapshot of current images to avoid index issues if state updates
+        const imagesSnapshot = history.present;
+
+        for (const img of imagesSnapshot) {
+            if (controller.signal.aborted) break;
+            if (img.bubbles.length === 0) continue;
+
+            // Set specific image status to processing (shows spinner in gallery)
+            setImages(prev => prev.map(p => p.id === img.id ? { ...p, status: 'processing' } : p));
+
+            // Parallel process bubbles within the image
+            const updatedBubbles = await Promise.all(img.bubbles.map(async (b) => {
+                const color = await detectBubbleColor(
+                    img.url || `data:image/png;base64,${img.base64}`,
+                    b.x, b.y, b.width, b.height
+                );
+                return { ...b, backgroundColor: color };
+            }));
+
+            // Commit updates and reset status to done
+            setImages(prev => prev.map(p => p.id === img.id ? { ...p, bubbles: updatedBubbles, status: 'done' } : p));
+        }
+    } catch (e) {
+        console.error("Global detection error", e);
+    } finally {
+        setIsProcessingBatch(false);
+        abortControllerRef.current = null;
+    }
+  };
 
   // --- CANVAS INTERACTION (DRAW & SELECT) ---
 
@@ -766,6 +862,8 @@ const App: React.FC = () => {
 
     // 1. Cleanup tiny drawings (Synchronous)
     if (mode === 'drawing') {
+        // Use imagesRef to get current state synchronously inside callback to avoid closure staleness if possible, 
+        // but setImages updater function handles this correctly.
         setImages(prev => {
             const img = prev.find(i => i.id === currentId);
             if (!img) return prev;
@@ -793,33 +891,11 @@ const App: React.FC = () => {
         }));
     }
 
-    // 3. Auto-detect color (Asynchronous / Fire-and-forget) with 300ms debounce
-    // Trigger on drawing, move, or resize for bubbles
+    // 3. Auto-detect color using refined trigger (Debounced & Safe)
     if (targetType === 'bubble' && currentId && (mode === 'drawing' || mode === 'move' || mode === 'resize')) {
-        setTimeout(async () => {
-             const imgState = images.find(i => i.id === currentId);
-             if (imgState) {
-                 const bubble = imgState.bubbles.find(b => b.id === id);
-                 
-                 // Double check existence and size
-                 if (bubble && bubble.width >= 1 && bubble.height >= 1) {
-                     const detectedColor = await detectBubbleColor(
-                         imgState.url || `data:image/png;base64,${imgState.base64}`,
-                         bubble.x, bubble.y, bubble.width, bubble.height
-                     );
-                     
-                     // Apply color
-                     setImages(prev => prev.map(img => 
-                         img.id === currentId ? {
-                             ...img,
-                             bubbles: img.bubbles.map(b => b.id === id ? { ...b, backgroundColor: detectedColor } : b)
-                         } : img
-                     ));
-                 }
-             }
-        }, 300);
+        triggerAutoColorDetection(id);
     }
-  }, [currentId, images]); 
+  }, [currentId, triggerAutoColorDetection]); 
 
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove);
@@ -847,10 +923,14 @@ const App: React.FC = () => {
        
        // Process detected bubbles to calculate colors
        const processedBubbles = await Promise.all(detected.map(async (d) => {
-           const color = await detectBubbleColor(
-               img.url || `data:image/png;base64,${img.base64}`,
-               d.x, d.y, d.width, d.height
-           );
+           // Respect the autoDetectBackground config for initial detection too
+           let color = '#ffffff';
+           if (aiConfig.autoDetectBackground !== false) {
+               color = await detectBubbleColor(
+                   img.url || `data:image/png;base64,${img.base64}`,
+                   d.x, d.y, d.width, d.height
+               );
+           }
 
            return {
                 id: crypto.randomUUID(),
@@ -859,7 +939,7 @@ const App: React.FC = () => {
                 fontFamily: (d.text.includes('JSON') ? 'zhimang' : 'noto') as 'noto' | 'zhimang' | 'mashan',
                 fontSize: aiConfig.defaultFontSize,
                 color: '#0f172a', 
-                backgroundColor: color, // Apply detected color
+                backgroundColor: color, // Apply detected color or default white
                 rotation: d.rotation || 0,
            };
        }));
@@ -1183,6 +1263,7 @@ const App: React.FC = () => {
                            setImages(prev => prev.map(img => img.id === currentId ? { ...img, bubbles: img.bubbles.filter(b => b.id !== bubble.id) } : img));
                            setSelectedBubbleId(null);
                       }}
+                      onTriggerAutoColor={triggerAutoColorDetection}
                     />
                   ))}
               </div>
@@ -1223,7 +1304,26 @@ const App: React.FC = () => {
       </aside>
 
       {/* Modals */}
-      {showSettings && <SettingsModal config={aiConfig} onSave={(newConfig) => { setAiConfig(newConfig); setShowSettings(false); }} onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <SettingsModal 
+            config={aiConfig} 
+            onSave={(newConfig) => { 
+                const oldAutoDetect = aiConfig.autoDetectBackground;
+                setAiConfig(newConfig); 
+                setShowSettings(false); 
+                
+                // Trigger global actions if setting changed
+                if (newConfig.autoDetectBackground !== oldAutoDetect) {
+                    if (newConfig.autoDetectBackground) {
+                        handleGlobalColorDetection();
+                    } else {
+                        handleGlobalColorReset();
+                    }
+                }
+            }} 
+            onClose={() => setShowSettings(false)} 
+        />
+      )}
       {showHelp && <HelpModal lang={lang} onClose={() => setShowHelp(false)} />}
       {showManualJson && currentId && <ManualJsonModal config={aiConfig} onApply={(detected) => { const newBubbles: Bubble[] = detected.map(d => ({ id: crypto.randomUUID(), x: d.x, y: d.y, width: d.width, height: d.height, text: d.text, isVertical: d.isVertical, fontFamily: 'noto', fontSize: aiConfig.defaultFontSize, color: '#0f172a', backgroundColor: '#ffffff', rotation: 0 })); updateImageBubbles(currentId, newBubbles); setShowManualJson(false); }} onClose={() => setShowManualJson(false)} />}
     </div>

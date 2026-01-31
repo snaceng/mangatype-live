@@ -1,4 +1,5 @@
 
+
 export const translations = {
   zh: {
     appName: "MangaType Live",
@@ -59,6 +60,8 @@ export const translations = {
     allowAiRotationHint: "尝试让 AI 识别文字倾斜角度（实验性）。",
     useMasksAsHints: "使用红框作为提示",
     useMasksAsHintsHint: "即使不开启本地检测，也将手动绘制的红框坐标发送给 AI 作为强提示。",
+    autoDetectBackground: "自动检测背景色",
+    autoDetectBackgroundHint: "在移动、缩放或绘制气泡时，自动吸取周围颜色作为遮罩背景（关闭则默认为白色）。",
     defaultFontSize: "默认字号",
     systemPrompt: "系统提示词",
     cancel: "取消",
@@ -117,7 +120,7 @@ export const translations = {
         },
         {
           title: "手动 JSON 导入 (Manual Import)",
-          desc: "如果你没有配置 API Key，或者想临时测试某个还没去弄api的模型，可以使用此功能。点击工具栏的 JSON 按钮 -> 复制提示词 -> 将提示词和图片发给任意 AI 网页端 -> 将 AI 返回的 JSON 代码粘贴回来。这样可以“白嫖”外部 AI 的能力来生成气泡。"
+          desc: "如果你没有配置 API Key，或者想使用更强的模型（如 Claude 3.5 / DeepSeek），使用此功能。点击工具栏的 JSON 按钮 -> 复制提示词 -> 将提示词和图片发给任意 AI 网页端 -> 将 AI 返回的 JSON 代码粘贴回来。这样可以“白嫖”外部 AI 的能力来生成气泡。"
         },
         {
           title: "合并图层 (Merge Layers)",
@@ -194,6 +197,8 @@ export const translations = {
     allowAiRotationHint: "Attempt to detect text rotation angle (Experimental).",
     useMasksAsHints: "Use Red Boxes as Hints",
     useMasksAsHintsHint: "Send manual red box coordinates to AI as strong spatial hints, even without local OCR.",
+    autoDetectBackground: "Auto Detect Background Color",
+    autoDetectBackgroundHint: "Automatically sample the bubble edge color when moving or resizing (Defaults to white if off).",
     defaultFontSize: "Default Font Size",
     systemPrompt: "System Prompt",
     cancel: "Cancel",
