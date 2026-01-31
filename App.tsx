@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { BubbleEditor } from './components/BubbleEditor';
 import { SettingsModal } from './components/SettingsModal';
@@ -8,7 +9,7 @@ import { Gallery } from './components/Gallery';
 import { Bubble, ImageState, AIConfig, MaskRegion } from './types';
 import { Upload, Download, Plus, Maximize, Loader2, Settings, FileJson, Archive, Play, Layers, Image as ImageIcon, Undo2, Redo2, FileStack, Minus, Type, MessageSquareDashed, CircleHelp, Square, Crop, X, MousePointer2, Scan, ScanFace } from 'lucide-react';
 import { detectAndTypesetComic, DEFAULT_SYSTEM_PROMPT } from './services/geminiService';
-import { downloadSingleImage, downloadAllAsZip, compositeImage, generateMaskedImage } from './services/exportService';
+import { downloadSingleImage, downloadAllAsZip, compositeImage, generateMaskedImage, detectBubbleColor } from './services/exportService';
 import { t } from './services/i18n';
 
 // Storage Key for localStorage
@@ -142,7 +143,7 @@ const BubbleLayer: React.FC<BubbleLayerProps> = React.memo(({ bubble, isSelected
         transform: `translate(-50%, -50%) rotate(${bubble.rotation}deg)`,
       }}
     >
-      {/* Mask Layer */}
+      {/* Mask Layer - Changed from rounded-[50%] to rounded-[20%] for rounded rectangle */}
       <div 
         className="absolute inset-0 rounded-[20%] transition-colors duration-200"
         style={{ 
@@ -187,6 +188,8 @@ const BubbleLayer: React.FC<BubbleLayerProps> = React.memo(({ bubble, isSelected
           whiteSpace: 'pre-wrap',
           lineHeight: '1.5',
           textAlign: bubble.isVertical ? 'left' : 'center',
+          WebkitTextStroke: '3px #ffffff',
+          paintOrder: 'stroke fill',
         }}
       >
         {bubble.text}
@@ -753,39 +756,78 @@ const App: React.FC = () => {
   }, [currentId]);
 
   const handleMouseUp = useCallback(() => { 
-    if (dragRef.current) {
-        const { id, mode, targetType } = dragRef.current;
-        if (mode === 'drawing') {
-            setImages(prev => {
-                const img = prev.find(i => i.id === currentId);
-                if (!img) return prev;
-                // Cleanup tiny drawings
-                if (targetType === 'bubble') {
-                    const bubble = img.bubbles.find(b => b.id === id);
-                    if (bubble && (bubble.width < 1 || bubble.height < 1)) {
-                         return prev.map(p => p.id === currentId ? { ...p, bubbles: p.bubbles.filter(b => b.id !== id) } : p);
-                    }
-                } else {
-                    const mask = img.maskRegions?.find(m => m.id === id);
-                    if (mask && (mask.width < 1 || mask.height < 1)) {
-                         return prev.map(p => p.id === currentId ? { ...p, maskRegions: (p.maskRegions || []).filter(m => m.id !== id) } : p);
-                    }
-                }
-                return prev;
-            });
-        }
+    const dragData = dragRef.current;
+    if (!dragData) return;
 
-        if (dragRef.current.hasMoved || dragRef.current.mode === 'drawing') {
-            const snapshot = dragRef.current.initialSnapshot;
-            setHistory(curr => ({
-                past: [...curr.past, snapshot].slice(-20),
-                present: curr.present,
-                future: []
-            }));
-        }
-    }
+    // IMMEDIATE RESET to avoid sticky drag behavior
     dragRef.current = null; 
-  }, [currentId]);
+    
+    const { id, mode, targetType, initialSnapshot, hasMoved } = dragData;
+
+    // 1. Cleanup tiny drawings (Synchronous)
+    if (mode === 'drawing') {
+        setImages(prev => {
+            const img = prev.find(i => i.id === currentId);
+            if (!img) return prev;
+            if (targetType === 'bubble') {
+                const bubble = img.bubbles.find(b => b.id === id);
+                if (bubble && (bubble.width < 1 || bubble.height < 1)) {
+                        return prev.map(p => p.id === currentId ? { ...p, bubbles: p.bubbles.filter(b => b.id !== id) } : p);
+                }
+            } else {
+                const mask = img.maskRegions?.find(m => m.id === id);
+                if (mask && (mask.width < 1 || mask.height < 1)) {
+                        return prev.map(p => p.id === currentId ? { ...p, maskRegions: (p.maskRegions || []).filter(m => m.id !== id) } : p);
+                }
+            }
+            return prev;
+        });
+    }
+
+    // 2. History update (Synchronous)
+    if (hasMoved || mode === 'drawing') {
+        setHistory(curr => ({
+            past: [...curr.past, initialSnapshot].slice(-20),
+            present: curr.present,
+            future: []
+        }));
+    }
+
+    // 3. Auto-detect color (Asynchronous / Fire-and-forget)
+    // We launch this as a side effect so we don't block the UI thread.
+    if (mode === 'drawing' && targetType === 'bubble' && currentId) {
+        // We use an async IIFE to avoid making the whole callback async
+        (async () => {
+             // Access latest images from closure (should be fine as we just rendered)
+             // However, to be safe, we use the functional update pattern or just read from scope 
+             // knowing that images array is the one from the render cycle where mouseUp was created.
+             const imgState = images.find(i => i.id === currentId);
+             if (imgState) {
+                 const bubble = imgState.bubbles.find(b => b.id === id);
+                 // Double check existence (it might have been deleted by the tiny-cleanup above, 
+                 // but since we are in the closure of the render *before* the cleanup state update...
+                 // Wait, setImages is async. 
+                 // Actually, if we just drew it, it's in 'images' (the state we are currently rendering).
+                 // The 'tiny cleanup' setImages runs in the future.
+                 // So 'bubble' should exist here.
+                 if (bubble && bubble.width >= 1 && bubble.height >= 1) {
+                     const detectedColor = await detectBubbleColor(
+                         imgState.url || `data:image/png;base64,${imgState.base64}`,
+                         bubble.x, bubble.y, bubble.width, bubble.height
+                     );
+                     
+                     // Apply color
+                     setImages(prev => prev.map(img => 
+                         img.id === currentId ? {
+                             ...img,
+                             bubbles: img.bubbles.map(b => b.id === id ? { ...b, backgroundColor: detectedColor } : b)
+                         } : img
+                     ));
+                 }
+             }
+        })();
+    }
+  }, [currentId, images]); 
 
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove);
@@ -811,22 +853,31 @@ const App: React.FC = () => {
        // The service layer will decide whether to use them based on config.useMasksAsHints.
        const detected = await detectAndTypesetComic(sourceBase64, aiConfig, signal, img.maskRegions);
        
-       const newBubbles: Bubble[] = detected.map(d => ({
-        id: crypto.randomUUID(),
-        x: d.x, y: d.y, width: d.width, height: d.height,
-        text: d.text, isVertical: d.isVertical,
-        fontFamily: d.text.includes('JSON') ? 'zhimang' : 'noto',
-        fontSize: aiConfig.defaultFontSize,
-        color: '#0f172a', backgroundColor: '#ffffff', 
-        rotation: d.rotation || 0,
-      }));
+       // Process detected bubbles to calculate colors
+       const processedBubbles = await Promise.all(detected.map(async (d) => {
+           const color = await detectBubbleColor(
+               img.url || `data:image/png;base64,${img.base64}`,
+               d.x, d.y, d.width, d.height
+           );
+
+           return {
+                id: crypto.randomUUID(),
+                x: d.x, y: d.y, width: d.width, height: d.height,
+                text: d.text, isVertical: d.isVertical,
+                fontFamily: (d.text.includes('JSON') ? 'zhimang' : 'noto') as 'noto' | 'zhimang' | 'mashan',
+                fontSize: aiConfig.defaultFontSize,
+                color: '#0f172a', 
+                backgroundColor: color, // Apply detected color
+                rotation: d.rotation || 0,
+           };
+       }));
       
       setImages(prev => prev.map(p => p.id === img.id ? { 
           ...p, 
           // Append new bubbles if using mask mode, otherwise replace? 
           // Usually replace is safer for "Process All", but for Mask Mode we might want to APPEND.
           // Let's Append if useMaskedImage is true (additive workflow), Replace if not (fresh start).
-          bubbles: useMaskedImage ? [...p.bubbles, ...newBubbles] : newBubbles,
+          bubbles: useMaskedImage ? [...p.bubbles, ...processedBubbles] : processedBubbles,
           // Removed clearing of maskRegions to allow persistence as per user request
           status: 'done' 
       } : p));

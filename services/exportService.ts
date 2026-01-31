@@ -1,4 +1,5 @@
 
+
 import { ImageState, Bubble, MaskRegion } from '../types';
 import JSZip from 'jszip';
 
@@ -21,6 +22,129 @@ const loadImage = (src: string): Promise<HTMLImageElement> => {
         img.onerror = (e) => reject(new Error("Failed to load image"));
         img.src = src;
     });
+};
+
+// Helper to convert RGB to Hex
+const rgbToHex = (r: number, g: number, b: number) => {
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+};
+
+/**
+ * Detects the dominant color (Mode/Voting) in the SURROUNDING EDGE of the region.
+ * Instead of sampling the inside (which contains text), we sample a "doughnut" shape
+ * around the bubble to find the background color it sits on.
+ */
+export const detectBubbleColor = async (
+    imageSrc: string, 
+    xPct: number, 
+    yPct: number, 
+    wPct: number, 
+    hPct: number
+): Promise<string> => {
+    try {
+        const img = await loadImage(imageSrc);
+        const canvas = document.createElement('canvas');
+        // We don't need full resolution for color sampling, keep it manageable
+        const maxDim = 1024; 
+        let scale = 1;
+        if (img.width > maxDim || img.height > maxDim) {
+            scale = Math.min(maxDim / img.width, maxDim / img.height);
+        }
+        
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return '#ffffff';
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // 1. Calculate the Inner Box (The Bubble itself) in pixels
+        const innerCX = (xPct / 100) * canvas.width;
+        const innerCY = (yPct / 100) * canvas.height;
+        const innerW = Math.max(1, (wPct / 100) * canvas.width);
+        const innerH = Math.max(1, (hPct / 100) * canvas.height);
+        
+        const innerLeft = Math.floor(innerCX - innerW / 2);
+        const innerTop = Math.floor(innerCY - innerH / 2);
+        const innerRight = innerLeft + innerW;
+        const innerBottom = innerTop + innerH;
+
+        // 2. Calculate the Outer Box (Expanded area to sample)
+        // Expand by 20% of the dimensions, but at least a few pixels
+        const expandX = Math.max(5, innerW * 0.2);
+        const expandY = Math.max(5, innerH * 0.2);
+
+        const outerLeft = Math.max(0, Math.floor(innerLeft - expandX));
+        const outerTop = Math.max(0, Math.floor(innerTop - expandY));
+        const outerRight = Math.min(canvas.width, Math.ceil(innerRight + expandX));
+        const outerBottom = Math.min(canvas.height, Math.ceil(innerBottom + expandY));
+        
+        const outerW = outerRight - outerLeft;
+        const outerH = outerBottom - outerTop;
+
+        if (outerW <= 0 || outerH <= 0) return '#ffffff';
+
+        // 3. Get pixel data for the Outer Box
+        const imageData = ctx.getImageData(outerLeft, outerTop, outerW, outerH);
+        const data = imageData.data;
+        
+        const colorCounts: Record<string, number> = {};
+        let maxCount = 0;
+        let dominantColor = '#ffffff';
+
+        // 4. Iterate pixels
+        // Sample step can be larger for performance
+        const step = 4; 
+        
+        for (let y = 0; y < outerH; y += step) {
+            for (let x = 0; x < outerW; x += step) {
+                // Calculate absolute position of this pixel
+                const absX = outerLeft + x;
+                const absY = outerTop + y;
+
+                // 5. CRITICAL: EDGE SAMPLING LOGIC
+                // If the pixel is INSIDE the Inner Box, SKIP IT.
+                // We only want pixels that are in the expanded margin.
+                if (absX > innerLeft && absX < innerRight && absY > innerTop && absY < innerBottom) {
+                    continue;
+                }
+
+                const i = (y * outerW + x) * 4;
+                
+                const rRaw = data[i];
+                const gRaw = data[i + 1];
+                const bRaw = data[i + 2];
+                const alpha = data[i + 3];
+
+                if (alpha < 128) continue; // Skip transparent
+
+                // Quantize colors to group similar shades (e.g., slightly different whites)
+                // Round to nearest 16
+                const r = Math.round(rRaw / 16) * 16;
+                const g = Math.round(gRaw / 16) * 16;
+                const b = Math.round(bRaw / 16) * 16;
+
+                const key = `${r},${g},${b}`;
+                colorCounts[key] = (colorCounts[key] || 0) + 1;
+
+                if (colorCounts[key] > maxCount) {
+                    maxCount = colorCounts[key];
+                    // Clamp RGB values to valid range 0-255 after rounding
+                    dominantColor = rgbToHex(
+                        Math.min(255, r), 
+                        Math.min(255, g), 
+                        Math.min(255, b)
+                    );
+                }
+            }
+        }
+
+        return dominantColor;
+
+    } catch (e) {
+        console.warn("Color detection failed, defaulting to white", e);
+        return '#ffffff';
+    }
 };
 
 /**
@@ -111,6 +235,12 @@ export const compositeImage = async (imageState: ImageState): Promise<Blob | nul
        //    - We use 'transform' because margins are unreliable in foreignObject.
        const verticalFixStyle = b.isVertical ? 'transform: translateX(0.75em);' : '';
 
+       // Stroke logic: White stroke by default for better visibility
+       const strokeStyle = `
+         -webkit-text-stroke: 4px #ffffff; 
+         paint-order: stroke fill;
+       `;
+
        return `
         <div style="
             position: absolute;
@@ -148,6 +278,7 @@ export const compositeImage = async (imageState: ImageState): Promise<Blob | nul
                 white-space: pre-wrap;
                 z-index: 2;
                 ${verticalFixStyle}
+                ${strokeStyle}
             ">
                 ${renderText}
             </div>
