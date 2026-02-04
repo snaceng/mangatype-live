@@ -95,7 +95,7 @@ const cleanDetectedText = (text: string): string => {
  */
 const extractJsonFromText = (text: string): any => {
   if (!text) throw new Error("Empty response received from AI");
-
+  
   // 1. Try cleaning markdown code blocks first
   // This regex matches ```json ... ``` or ``` ... ``` and extracts the content
   const markdownRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
@@ -109,18 +109,18 @@ const extractJsonFromText = (text: string): any => {
     // 3. If that fails, look for the first '{' and last '}' to handle introductory/trailing text
     const startIdx = content.indexOf('{');
     const endIdx = content.lastIndexOf('}');
-
+    
     if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
       const possibleJson = content.substring(startIdx, endIdx + 1);
       try {
         return JSON.parse(possibleJson);
       } catch (e2) {
-         // Final fallback attempt: sometimes models output broken JSON or JS-like objects.
+         // Final fallback attempt: sometimes models output broken JSON or JS-like objects. 
          // But for now, we just throw if strict JSON parse fails.
       }
     }
   }
-
+  
   throw new Error("Could not parse JSON structure from AI response. Raw content: " + text.substring(0, 50) + "...");
 };
 
@@ -153,13 +153,13 @@ const getOpenAiBaseUrl = (baseUrl: string): string => {
 
 /**
  * Constructs the message history based on config.customMessages.
- *
+ * 
  * For Gemini:
  * - Maps 'assistant' to 'model'.
  * - Maps 'user' to 'user'.
  * - 'system' messages are extracted separately and should be appended to the system prompt text,
  *   because Gemini 'contents' array strictly allows only 'user' and 'model' turns.
- *
+ * 
  * For OpenAI:
  * - Maps everything as is ('user', 'assistant', 'system').
  */
@@ -187,7 +187,7 @@ const getCustomMessages = (config: AIConfig, provider: 'gemini' | 'openai'): { h
         content: msg.content
     }));
   }
-
+  
   return { history, systemInjection };
 };
 
@@ -201,7 +201,7 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       if (!res.ok) return ['gemini-3-flash-preview', 'gemini-3-pro-preview'];
       const data = await res.json();
-
+      
       const prohibitedModels = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro', 'gemini-pro'];
       return (data.models || [])
         .map((m: any) => m.name.replace('models/', ''))
@@ -221,7 +221,7 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
 };
 
 export const polishDialogue = async (text: string, style: 'dramatic' | 'casual' | 'english', config: AIConfig): Promise<string> => {
-  const prompt = style === 'dramatic'
+  const prompt = style === 'dramatic' 
     ? `Rewrite the following comic book dialogue to be more dramatic: "${text}"`
     : style === 'casual'
     ? `Rewrite the following comic book dialogue to be casual: "${text}"`
@@ -230,7 +230,7 @@ export const polishDialogue = async (text: string, style: 'dramatic' | 'casual' 
   if (config.provider === 'gemini') {
     const ai = getGeminiClient();
     const { history, systemInjection } = getCustomMessages(config, 'gemini');
-
+    
     const finalContents = [...history];
     const userPart = { role: 'user', parts: [{ text: (systemInjection ? `[System Note: ${systemInjection}]\n\n` : "") + prompt }] };
     finalContents.push(userPart);
@@ -243,7 +243,7 @@ export const polishDialogue = async (text: string, style: 'dramatic' | 'casual' 
   } else {
     const baseUrl = getOpenAiBaseUrl(config.baseUrl);
     const { history } = getCustomMessages(config, 'openai');
-
+    
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.apiKey}` },
@@ -271,7 +271,7 @@ export const fetchRawDetectedRegions = async (base64Image: string, apiUrl: strin
             image: `data:image/jpeg;base64,${base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "")}`,
             return_mask: "false"
         };
-
+        
         const response = await fetch(`${apiUrl}/detect`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -284,20 +284,20 @@ export const fetchRawDetectedRegions = async (base64Image: string, apiUrl: strin
         if (!data.success || !data.text_blocks || !data.image_size) return [];
 
         const { width: imgW, height: imgH } = data.image_size;
-
+        
         return data.text_blocks.map((block: any) => {
             const [x1, y1, x2, y2] = block.xyxy;
             const widthPx = x2 - x1;
             const heightPx = y2 - y1;
             const cxPx = x1 + widthPx / 2;
             const cyPx = y1 + heightPx / 2;
-
+            
             // To Percentages
             const x = (cxPx / imgW) * 100;
             const y = (cyPx / imgH) * 100;
             const w = (widthPx / imgW) * 100;
             const h = (heightPx / imgH) * 100;
-
+            
             return { x, y, width: w, height: h };
         });
 
@@ -310,8 +310,8 @@ export const fetchRawDetectedRegions = async (base64Image: string, apiUrl: strin
 // --- Main Function ---
 
 export const detectAndTypesetComic = async (
-    base64Image: string,
-    config: AIConfig,
+    base64Image: string, 
+    config: AIConfig, 
     signal?: AbortSignal,
     maskRegions?: MaskRegion[]
 ): Promise<DetectedBubble[]> => {
@@ -330,7 +330,7 @@ export const detectAndTypesetComic = async (
       const hints = maskRegions.map(m => {
           return `- [x:${m.x.toFixed(1)}%, y:${m.y.toFixed(1)}%, w:${m.width.toFixed(1)}%, h:${m.height.toFixed(1)}%] (User Marked Region)`;
       }).join('\n');
-
+      
       systemPrompt += `\n\n[HINT] The user has manually marked specific regions containing text. Please prioritize detecting bubbles in these approximate coordinates (Center X, Center Y, Width, Height):\n${hints}`;
       console.log("Injected Manual Mask Hints into Prompt");
   }
@@ -348,13 +348,13 @@ export const detectAndTypesetComic = async (
 
   if (config.allowAiRotation) {
     // Inject 'rotation' property into the tool schemas
-    geminiToolSchema.parameters.properties.bubbles.items.properties.rotation = {
-        type: Type.NUMBER,
-        description: 'Rotation angle in degrees (e.g. -15, 15)'
+    geminiToolSchema.parameters.properties.bubbles.items.properties.rotation = { 
+        type: Type.NUMBER, 
+        description: 'Rotation angle in degrees (e.g. -15, 15)' 
     };
-    openAIToolSchema.parameters.properties.bubbles.items.properties.rotation = {
-        type: 'number',
-        description: 'Rotation angle in degrees (e.g. -15, 15)'
+    openAIToolSchema.parameters.properties.bubbles.items.properties.rotation = { 
+        type: 'number', 
+        description: 'Rotation angle in degrees (e.g. -15, 15)' 
     };
   }
 
@@ -367,18 +367,18 @@ export const detectAndTypesetComic = async (
     if (systemInjection) {
         systemPrompt += `\n\n[Additional Instructions]:${systemInjection}`;
     }
-
+    
     // Tier 1: Function Calling
     try {
       if (signal?.aborted) throw new Error("Aborted by user");
-      // Note: @google/genai SDK cancellation support varies.
+      // Note: @google/genai SDK cancellation support varies. 
       // We perform pre-flight check, but logic relies mainly on App.tsx loop break for batch aborts.
       const response = await ai.models.generateContent({
         model: config.model || 'gemini-3-pro-preview',
         contents: [
             ...history,
-            {
-              role: 'user',
+            { 
+              role: 'user', 
               parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: data } },
                 { text: systemPrompt + "\nCall the 'create_bubbles_for_comic' function with the results." }
@@ -409,8 +409,8 @@ export const detectAndTypesetComic = async (
         model: config.model || 'gemini-3-flash-preview',
         contents: [
             ...history,
-            {
-              role: 'user',
+            { 
+              role: 'user', 
               parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: data } },
                 { text: systemPrompt + "\nCRITICAL: You must return a JSON object with a 'bubbles' key containing the list of speech bubbles." }
@@ -437,8 +437,8 @@ export const detectAndTypesetComic = async (
         model: config.model || 'gemini-3-flash-preview',
         contents: [
             ...history,
-            {
-              role: 'user',
+            { 
+              role: 'user', 
               parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: data } },
                 { text: systemPrompt + "\nRespond ONLY with a valid JSON object. Example: {\"bubbles\": [...]}. Do not include any other text." }
@@ -460,7 +460,7 @@ export const detectAndTypesetComic = async (
     // OpenAI Provider
     const baseUrl = getOpenAiBaseUrl(config.baseUrl);
     const { history } = getCustomMessages(config, 'openai');
-
+    
     try {
       const response = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
@@ -485,14 +485,14 @@ export const detectAndTypesetComic = async (
       });
 
       const resData = await response.json();
-
+      
       // OpenAI Error from API
       if (resData.error) {
           throw new Error("OpenAI API Error: " + resData.error.message);
       }
 
       const toolCalls = resData.choices?.[0]?.message?.tool_calls;
-
+      
       if (toolCalls && toolCalls.length > 0) {
         const args = JSON.parse(toolCalls[0].function.arguments);
         const bubbles = validateBubblesArray(args);

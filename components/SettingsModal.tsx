@@ -1,7 +1,8 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { AIConfig, AIProvider, CustomMessage } from '../types';
-import { Settings, X, RefreshCw, CheckCircle, AlertCircle, Server, RotateCcw, Type, ScanText, Globe, RotateCw, ChevronDown, Check, MessageSquarePlus, Trash2, Plus, Scan, Pipette, Zap, Bot, Layout, Cpu, FileText } from 'lucide-react';
+import { Settings, X, RefreshCw, CheckCircle, AlertCircle, Server, RotateCcw, Type, ScanText, Globe, RotateCw, ChevronDown, Check, MessageSquarePlus, Trash2, Plus, Scan, Pipette, Zap, Bot, Layout, Cpu, FileText, Magnet } from 'lucide-react';
 import { fetchAvailableModels, DEFAULT_SYSTEM_PROMPT } from '../services/geminiService';
 import { t } from '../services/i18n';
 
@@ -456,6 +457,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
                                                 onChange={(e) => setLocalConfig({...localConfig, autoDetectBackground: e.target.checked})}
                                             />
                                             <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Enable Dialog Snapping */}
+                                <div className="p-4 bg-gray-800/30 border border-gray-800 hover:border-yellow-500/30 rounded-xl transition-colors group">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex gap-3">
+                                            <div className="mt-1 p-1.5 bg-yellow-500/10 rounded text-yellow-400"><Magnet size={18}/></div>
+                                            <div>
+                                                <h4 className="text-sm font-medium text-white mb-1">{t('enableDialogSnap', lang)}</h4>
+                                                <p className="text-xs text-gray-500 group-hover:text-gray-400 transition-colors leading-relaxed">{t('enableDialogSnapHint', lang)}</p>
+                                            </div>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                className="sr-only peer"
+                                                checked={localConfig.enableDialogSnap !== false}
+                                                onChange={(e) => setLocalConfig({...localConfig, enableDialogSnap: e.target.checked})}
+                                            />
+                                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-yellow-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
                                         </label>
                                     </div>
                                 </div>

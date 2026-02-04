@@ -1,4 +1,5 @@
 
+
 export interface Bubble {
   id: string;
   x: number; // Center X percentage 0-100
@@ -83,6 +84,7 @@ export interface AIConfig {
   customMessages?: CustomMessage[]; // Pre-request messages
   useMasksAsHints?: boolean; // Send manual red boxes as hints to AI
   autoDetectBackground?: boolean; // New: Toggle for auto background color detection
+  enableDialogSnap?: boolean; // New: Snap AI bubbles to manual masks
 }
 
 // Add EyeDropper API type definition
