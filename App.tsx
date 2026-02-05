@@ -318,9 +318,13 @@ const App: React.FC = () => {
   const [isProcessingBatch, setIsProcessingBatch] = useState(false);
   const [concurrency, setConcurrency] = useState(1);
   const [isMerging, setIsMerging] = useState(false);
-  const [showGlobalStyles, setShowGlobalStyles] = useState(false); 
-  const [drawTool, setDrawTool] = useState<'none' | 'bubble' | 'mask'>('none'); 
-  
+  // Zip Loading State
+  const [isZipping, setIsZipping] = useState(false);
+  const [zipProgress, setZipProgress] = useState({ current: 0, total: 0 });
+
+  const [showGlobalStyles, setShowGlobalStyles] = useState(false);
+  const [drawTool, setDrawTool] = useState<'none' | 'bubble' | 'mask'>('none');
+
   const [aiConfig, setAiConfig] = useState<AIConfig>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -346,32 +350,32 @@ const App: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const detectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const dragRef = useRef<{ 
+  const dragRef = useRef<{
     mode: 'move' | 'resize' | 'drawing';
     targetType: 'bubble' | 'mask';
     id: string;
-    handle?: HandleType; 
-    startX: number; 
-    startY: number; 
-    startBx: number; 
+    handle?: HandleType;
+    startX: number;
+    startY: number;
+    startBx: number;
     startBy: number;
     startBw: number;
     startBh: number;
     rotation: number;
-    initialSnapshot: ImageState[]; 
+    initialSnapshot: ImageState[];
     hasMoved: boolean;
   } | null>(null);
 
   const images = history.present;
   const currentImage = images.find(img => img.id === currentId);
   const bubbles = currentImage?.bubbles || [];
-  const maskRegions = currentImage?.maskRegions || []; 
+  const maskRegions = currentImage?.maskRegions || [];
   const selectedBubble = selectedBubbleId ? bubbles.find(b => b.id === selectedBubbleId) : undefined;
-  
-  const lang = aiConfig.language; 
+
+  const lang = aiConfig.language;
 
   const setImages = (
-    newImagesOrUpdater: ImageState[] | ((prev: ImageState[]) => ImageState[]), 
+    newImagesOrUpdater: ImageState[] | ((prev: ImageState[]) => ImageState[]),
     skipHistory: boolean = false
   ) => {
     setHistory(curr => {
@@ -416,7 +420,7 @@ const App: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      
+
       if (!isInput && (e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
         e.shiftKey ? handleRedo() : handleUndo();
@@ -468,15 +472,15 @@ const App: React.FC = () => {
   const processFiles = async (inputFiles: FileList | File[]) => {
     const files = Array.from(inputFiles);
     const newImages: ImageState[] = [];
-    
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (!file.type.startsWith('image/')) continue;
-      
+
       try {
         const url = URL.createObjectURL(file);
         const base64 = await blobToBase64(file);
-        
+
         const loadedImgState = await new Promise<ImageState | null>((resolve) => {
           const img = new Image();
           img.onload = () => {
@@ -544,12 +548,12 @@ const App: React.FC = () => {
                   const globalSetting = aiConfigRef.current.autoDetectBackground;
                   const bubbleSetting = bubble.autoDetectBackground;
                   const shouldDetect = bubbleSetting !== undefined ? bubbleSetting : globalSetting;
-                  if (shouldDetect === false) return; 
+                  if (shouldDetect === false) return;
                   const detectedColor = await detectBubbleColor(
                       imgState.url || `data:image/png;base64,${imgState.base64}`,
                       bubble.x, bubble.y, bubble.width, bubble.height
                   );
-                  setImages(prev => prev.map(img => 
+                  setImages(prev => prev.map(img =>
                       img.id === currentId ? {
                           ...img,
                           bubbles: img.bubbles.map(b => b.id === bubbleId ? { ...b, backgroundColor: detectedColor } : b)
@@ -558,7 +562,7 @@ const App: React.FC = () => {
               }
           }
       }, 300);
-  }, [currentId]); 
+  }, [currentId]);
 
   const handleBubbleUpdate = useCallback((bubbleId: string, updates: Partial<Bubble>) => {
     if (!currentId) return;
@@ -566,7 +570,7 @@ const App: React.FC = () => {
     if (finalUpdates.autoDetectBackground === false && !finalUpdates.backgroundColor) {
         finalUpdates.backgroundColor = '#ffffff';
     }
-    setImages(prev => prev.map(img => 
+    setImages(prev => prev.map(img =>
         img.id === currentId ? {
             ...img,
             bubbles: img.bubbles.map(b => b.id === bubbleId ? { ...b, ...finalUpdates } : b)
@@ -689,9 +693,9 @@ const App: React.FC = () => {
         if (blob) {
             const newUrl = URL.createObjectURL(blob);
             const newBase64 = await blobToBase64(blob);
-            setImages(prev => prev.map(img => 
-                img.id === currentImage.id 
-                ? { ...img, url: newUrl, base64: newBase64, bubbles: [] } 
+            setImages(prev => prev.map(img =>
+                img.id === currentImage.id
+                ? { ...img, url: newUrl, base64: newBase64, bubbles: [] }
                 : img
             ));
             setSelectedBubbleId(null);
@@ -699,15 +703,32 @@ const App: React.FC = () => {
     } catch (e) { console.error("Merge failed", e); alert("Failed to merge layers."); } finally { setIsMerging(false); }
   };
 
+  const handleZipDownload = async () => {
+    if (images.length === 0 || isZipping) return;
+    setIsZipping(true);
+    setZipProgress({ current: 0, total: images.length });
+    try {
+        await downloadAllAsZip(images, (curr, total) => {
+            setZipProgress({ current: curr, total });
+        });
+    } catch (e) {
+        console.error(e);
+        alert("Zip creation failed");
+    } finally {
+        setIsZipping(false);
+        setZipProgress({ current: 0, total: 0 });
+    }
+  };
+
   const handleMouseDown = (e: React.MouseEvent, id: string, type: 'bubble' | 'mask') => {
     e.stopPropagation();
-    e.preventDefault(); 
+    e.preventDefault();
     if (type === 'bubble') {
         setSelectedBubbleId(id); setSelectedMaskId(null);
         const bubble = bubbles.find(b => b.id === id);
         if (!bubble) return;
-        dragRef.current = { 
-          mode: 'move', targetType: 'bubble', id, startX: e.clientX, startY: e.clientY, 
+        dragRef.current = {
+          mode: 'move', targetType: 'bubble', id, startX: e.clientX, startY: e.clientY,
           startBx: bubble.x, startBy: bubble.y, startBw: bubble.width, startBh: bubble.height, rotation: bubble.rotation,
           initialSnapshot: history.present, hasMoved: false
         };
@@ -715,8 +736,8 @@ const App: React.FC = () => {
         setSelectedMaskId(id); setSelectedBubbleId(null);
         const mask = maskRegions.find(m => m.id === id);
         if (!mask) return;
-        dragRef.current = { 
-          mode: 'move', targetType: 'mask', id, startX: e.clientX, startY: e.clientY, 
+        dragRef.current = {
+          mode: 'move', targetType: 'mask', id, startX: e.clientX, startY: e.clientY,
           startBx: mask.x, startBy: mask.y, startBw: mask.width, startBh: mask.height, rotation: 0,
           initialSnapshot: history.present, hasMoved: false
         };
@@ -730,7 +751,7 @@ const App: React.FC = () => {
         if(!bubble) return;
         dragRef.current = {
           mode: 'resize', targetType: 'bubble', id: bubble.id, handle,
-          startX: e.clientX, startY: e.clientY, startBx: bubble.x, startBy: bubble.y, 
+          startX: e.clientX, startY: e.clientY, startBx: bubble.x, startBy: bubble.y,
           startBw: bubble.width, startBh: bubble.height, rotation: bubble.rotation,
           initialSnapshot: history.present, hasMoved: false
         };
@@ -739,7 +760,7 @@ const App: React.FC = () => {
         if(!mask) return;
         dragRef.current = {
           mode: 'resize', targetType: 'mask', id: mask.id, handle,
-          startX: e.clientX, startY: e.clientY, startBx: mask.x, startBy: mask.y, 
+          startX: e.clientX, startY: e.clientY, startBx: mask.x, startBy: mask.y,
           startBw: mask.width, startBh: mask.height, rotation: 0,
           initialSnapshot: history.present, hasMoved: false
         };
@@ -823,10 +844,10 @@ const App: React.FC = () => {
     }
   }, [currentId]);
 
-  const handleMouseUp = useCallback(() => { 
+  const handleMouseUp = useCallback(() => {
     const dragData = dragRef.current;
     if (!dragData) return;
-    dragRef.current = null; 
+    dragRef.current = null;
     const { id, mode, targetType, initialSnapshot, hasMoved } = dragData;
     if (mode === 'drawing') {
         setImages(prev => {
@@ -856,7 +877,7 @@ const App: React.FC = () => {
     if (targetType === 'bubble' && currentId && (mode === 'drawing' || mode === 'move' || mode === 'resize')) {
         triggerAutoColorDetection(id);
     }
-  }, [currentId, triggerAutoColorDetection]); 
+  }, [currentId, triggerAutoColorDetection]);
 
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove);
@@ -914,19 +935,19 @@ const App: React.FC = () => {
                 text: d.text, isVertical: d.isVertical,
                 fontFamily: (d.text.includes('JSON') ? 'zhimang' : 'noto') as 'noto' | 'zhimang' | 'mashan',
                 fontSize: aiConfig.defaultFontSize,
-                color: '#0f172a', 
-                backgroundColor: color, 
+                color: '#0f172a',
+                backgroundColor: color,
                 rotation: d.rotation || 0,
                 maskShape: aiConfig.defaultMaskShape,
                 maskCornerRadius: aiConfig.defaultMaskCornerRadius,
                 maskFeather: aiConfig.defaultMaskFeather
            };
        }));
-      
-      setImages(prev => prev.map(p => p.id === img.id ? { 
-          ...p, 
+
+      setImages(prev => prev.map(p => p.id === img.id ? {
+          ...p,
           bubbles: useMaskedImage ? [...p.bubbles, ...processedBubbles] : processedBubbles,
-          status: 'done' 
+          status: 'done'
       } : p));
      } catch (e: any) {
        if (e.message && e.message.includes('Aborted')) {
@@ -949,14 +970,14 @@ const App: React.FC = () => {
   // NEW: Force Reprocess All Logic (Manual Trigger)
   const handleForceBatchProcess = async () => {
      if (isProcessingBatch) return;
-     
+
      // Queue ALL non-skipped items
      const queue = images.filter(img => !img.skipped);
      if (queue.length === 0) {
         alert("No images available to process.");
         return;
      }
-     
+
      if (!confirm(`Are you sure you want to re-process ALL ${queue.length} images? This will consume API quota.`)) return;
 
      const controller = new AbortController();
@@ -991,7 +1012,7 @@ const App: React.FC = () => {
         } else {
           // STRICTLY only process idle/error images
           const queue = images.filter(img => !img.skipped && (img.status === 'idle' || img.status === 'error'));
-          
+
           if (queue.length === 0) {
               alert("All images are already processed. Use the 'Force Reprocess' button (cycle icon) if you want to run them again.");
               return;
@@ -1023,7 +1044,7 @@ const App: React.FC = () => {
     setIsProcessingBatch(true);
 
     try {
-        const targets = batch 
+        const targets = batch
             ? images.filter(img => !img.skipped && img.detectionStatus !== 'done') // Only scan pending for detection
             : (currentImage ? [currentImage] : []);
 
@@ -1038,7 +1059,7 @@ const App: React.FC = () => {
         for (let i = 0; i < targets.length; i += batchSize) {
              if (controller.signal.aborted) break;
              const chunk = targets.slice(i, i + batchSize);
-             
+
              await Promise.all(chunk.map(async (img) => {
                  // UPDATE: Use detectionStatus instead of main status
                  setImages(prev => prev.map(p => p.id === img.id ? { ...p, detectionStatus: 'processing' } : p));
@@ -1048,9 +1069,9 @@ const App: React.FC = () => {
                          id: crypto.randomUUID(),
                          x: r.x, y: r.y, width: r.width, height: r.height
                      }));
-                     
-                     setImages(prev => prev.map(p => p.id === img.id ? { 
-                         ...p, 
+
+                     setImages(prev => prev.map(p => p.id === img.id ? {
+                         ...p,
                          maskRegions: [...(p.maskRegions || []), ...maskRegions], // Append
                          detectionStatus: 'done' // UPDATE
                      } : p));
@@ -1080,18 +1101,18 @@ const App: React.FC = () => {
             <button onClick={() => setShowSettings(true)} className="text-gray-500 hover:text-white p-1" title={t('settings', lang)}><Settings size={16} /></button>
           </div>
         </div>
-        
+
         <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" multiple />
         <input type="file" ref={folderInputRef} onChange={handleFolderChange} className="hidden" {...({ webkitdirectory: "", directory: "" } as any)} />
 
         <div className="flex-1 overflow-hidden bg-gray-900/50">
-            <Gallery 
-                images={images} 
-                currentId={currentId} 
+            <Gallery
+                images={images}
+                currentId={currentId}
                 config={aiConfig}
-                onSelect={(id) => { setCurrentId(id); setSelectedBubbleId(null); setSelectedMaskId(null); }} 
-                onDelete={(id) => { setImages(prev => prev.filter(i => i.id !== id)); if (currentId === id) setCurrentId(null); }} 
-                onClearAll={() => { setImages([]); setCurrentId(null); }} 
+                onSelect={(id) => { setCurrentId(id); setSelectedBubbleId(null); setSelectedMaskId(null); }}
+                onDelete={(id) => { setImages(prev => prev.filter(i => i.id !== id)); if (currentId === id) setCurrentId(null); }}
+                onClearAll={() => { setImages([]); setCurrentId(null); }}
                 onToggleSkip={handleToggleSkip}
                 onAddFile={() => fileInputRef.current?.click()}
                 onAddFolder={() => folderInputRef.current?.click()}
@@ -1130,19 +1151,19 @@ const App: React.FC = () => {
 
                 <div className="p-3 space-y-3">
                     <div className="flex p-1 bg-gray-800 rounded-lg">
-                        <button 
+                        <button
                             onClick={() => { setDrawTool('none'); setSelectedBubbleId(null); setSelectedMaskId(null); }}
                             className={`flex-1 py-1 text-xs rounded-md transition-all flex items-center justify-center gap-1 ${drawTool === 'none' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
                         >
                             <MousePointer2 size={12}/> View
                         </button>
-                         <button 
+                         <button
                             onClick={() => { setDrawTool('bubble'); setSelectedBubbleId(null); setSelectedMaskId(null); }}
                             className={`flex-1 py-1 text-xs rounded-md transition-all flex items-center justify-center gap-1 ${drawTool === 'bubble' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
                         >
                             <MessageSquareDashed size={12}/> Bubble
                         </button>
-                         <button 
+                         <button
                             onClick={() => { setDrawTool('mask'); setSelectedBubbleId(null); setSelectedMaskId(null); }}
                             className={`flex-1 py-1 text-xs rounded-md transition-all flex items-center justify-center gap-1 ${drawTool === 'mask' ? 'bg-red-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
                         >
@@ -1150,9 +1171,9 @@ const App: React.FC = () => {
                         </button>
                     </div>
 
-                    <div className="h-10 relative"> 
+                    <div className="h-10 relative">
                         {isProcessingBatch ? (
-                            <button 
+                            <button
                                 onClick={handleStopProcessing}
                                 className="w-full h-full bg-red-900/50 hover:bg-red-800 border border-red-700 rounded text-xs text-red-200 flex items-center justify-center gap-2 animate-pulse"
                             >
@@ -1162,32 +1183,32 @@ const App: React.FC = () => {
                             <>
                                 {drawTool === 'none' && (
                                     <div className="flex gap-1 h-full">
-                                        <button 
-                                            onClick={() => handleBatchProcess(true)} 
+                                        <button
+                                            onClick={() => handleBatchProcess(true)}
                                             disabled={!currentImage}
                                             className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50 shadow-sm px-2"
                                             title={t('current', lang)}
                                         >
                                             <Sparkles size={14}/> {t('current', lang)}
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => handleBatchProcess(false)}
                                             className="flex-[1.5] bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs flex items-center justify-center gap-1 px-2"
                                             title="Process Pending (Auto)"
                                         >
                                             <Layers size={14}/> {t('processAll', lang)}
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={handleForceBatchProcess}
                                             className="w-10 bg-gray-700 hover:bg-gray-600 text-yellow-500 rounded text-xs flex items-center justify-center"
                                             title="Force Reprocess ALL"
                                         >
                                             <RefreshCw size={14} />
                                         </button>
-                                        <button 
-                                            onClick={() => setShowManualJson(true)} 
-                                            disabled={!currentImage} 
-                                            className="w-8 bg-teal-900/40 hover:bg-teal-800/60 border border-teal-800 text-teal-200 rounded text-xs flex items-center justify-center" 
+                                        <button
+                                            onClick={() => setShowManualJson(true)}
+                                            disabled={!currentImage}
+                                            className="w-8 bg-teal-900/40 hover:bg-teal-800/60 border border-teal-800 text-teal-200 rounded text-xs flex items-center justify-center"
                                             title={t('importJson', lang)}
                                         >
                                             <FileJson size={14}/>
@@ -1197,29 +1218,29 @@ const App: React.FC = () => {
 
                                 {drawTool === 'mask' && (
                                     <div className="grid grid-cols-4 gap-1 h-full">
-                                        <button 
-                                            onClick={() => handleBatchProcess(true)} 
+                                        <button
+                                            onClick={() => handleBatchProcess(true)}
                                             disabled={!currentImage}
                                             className="bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50 shadow-sm"
                                             title={t('current', lang)}
                                         >
                                             <Sparkles size={14}/> Trans.
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => handleBatchProcess(false)}
                                             className="bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs flex items-center justify-center gap-1"
                                             title={t('processAll', lang)}
                                         >
                                             <Layers size={14}/> Batch
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => handleLocalDetectionScan(false)}
                                             className="bg-orange-900/40 hover:bg-orange-800/60 border border-orange-800 text-orange-200 rounded text-xs flex items-center justify-center gap-1 disabled:opacity-50"
                                             title="Scan Current (Local Detect)"
                                         >
                                             <ScanText size={14}/> Scan
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => handleLocalDetectionScan(true)}
                                             className="bg-orange-900/40 hover:bg-orange-800/60 border border-orange-800 text-orange-200 rounded text-xs flex items-center justify-center gap-1 disabled:opacity-50"
                                             title="Scan All (Local Detect)"
@@ -1230,9 +1251,9 @@ const App: React.FC = () => {
                                 )}
 
                                 {drawTool === 'bubble' && (
-                                    <button 
-                                        onClick={handleAddManualBubble} 
-                                        disabled={!currentImage} 
+                                    <button
+                                        onClick={handleAddManualBubble}
+                                        disabled={!currentImage}
                                         className="w-full h-full bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold flex items-center justify-center gap-2 shadow-sm"
                                     >
                                         <Plus size={16}/> {t('manualAdd', lang)}
@@ -1246,8 +1267,8 @@ const App: React.FC = () => {
 
                     <div className="flex justify-between items-center px-1">
                         <div className="flex items-center gap-2">
-                            <button 
-                                onClick={() => setShowGlobalStyles(!showGlobalStyles)} 
+                            <button
+                                onClick={() => setShowGlobalStyles(!showGlobalStyles)}
                                 className={`p-2 rounded hover:bg-gray-700 transition-colors ${showGlobalStyles ? 'text-blue-400 bg-gray-800' : 'text-gray-400'}`}
                                 title={t('globalStyles', lang)}
                             >
@@ -1255,16 +1276,16 @@ const App: React.FC = () => {
                             </button>
                             <div className="flex items-center gap-1 bg-gray-800 rounded px-1.5 py-1 border border-gray-700" title={t('concurrency', lang)}>
                                 <Zap size={10} className="text-yellow-500" />
-                                <input 
-                                    type="number" 
-                                    min="1" 
-                                    value={concurrency} 
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={concurrency}
                                     onChange={(e) => setConcurrency(Math.max(1, parseInt(e.target.value) || 1))}
                                     className="w-8 bg-transparent text-[10px] text-center text-gray-300 outline-none appearance-none"
                                 />
                             </div>
                         </div>
-                        
+
                         <div className="flex gap-1">
                              <button onClick={handleMergeLayers} disabled={!currentImage || isMerging || currentImage.bubbles.length === 0} className="p-2 text-orange-400 hover:bg-gray-800 rounded disabled:opacity-30 transition-colors" title={t('merge', lang)}>
                                 {isMerging ? <Loader2 className="animate-spin" size={16}/> : <FileStack size={16}/>}
@@ -1272,8 +1293,20 @@ const App: React.FC = () => {
                             <button onClick={() => currentImage && downloadSingleImage(currentImage)} disabled={!currentImage} className="p-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded disabled:opacity-30 transition-colors" title={t('saveImage', lang)}>
                                 <ImageIcon size={16}/>
                             </button>
-                            <button onClick={() => downloadAllAsZip(images)} className="p-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition-colors" title={t('zipAll', lang)}>
-                                <Archive size={16}/>
+                            <button
+                                onClick={handleZipDownload}
+                                disabled={isZipping}
+                                className={`p-2 rounded transition-colors relative ${isZipping ? 'text-blue-400 bg-gray-800 cursor-not-allowed' : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
+                                title={t('zipAll', lang)}
+                            >
+                                {isZipping ? (
+                                    <div className="flex items-center justify-center">
+                                        <Loader2 className="animate-spin absolute" size={16}/>
+                                        <span className="text-[8px] font-bold absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-[1px]">{zipProgress.current}</span>
+                                    </div>
+                                ) : (
+                                    <Archive size={16}/>
+                                )}
                             </button>
                         </div>
                     </div>

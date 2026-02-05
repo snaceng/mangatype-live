@@ -360,12 +360,20 @@ export const downloadSingleImage = async (imageState: ImageState) => {
   }
 };
 
-export const downloadAllAsZip = async (images: ImageState[]) => {
+export const downloadAllAsZip = async (
+    images: ImageState[],
+    onProgress?: (current: number, total: number) => void
+) => {
   const zip = new JSZip();
   const folder = zip.folder("typeset_manga");
   let successCount = 0;
+  const total = images.length;
 
-  for (const img of images) {
+  for (let i = 0; i < total; i++) {
+    const img = images[i];
+    // Notify progress: "Processing i+1 out of total"
+    if (onProgress) onProgress(i + 1, total);
+
     try {
         const blob = await compositeImage(img);
         if (blob && folder) {
@@ -382,6 +390,7 @@ export const downloadAllAsZip = async (images: ImageState[]) => {
       return;
   }
 
+  // Final phase: Generating the actual zip file
   const content = await zip.generateAsync({ type: "blob" });
   const url = URL.createObjectURL(content);
   const a = document.createElement('a');
