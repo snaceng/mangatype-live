@@ -5,7 +5,7 @@ import { ManualJsonModal } from './components/ManualJsonModal';
 import { HelpModal } from './components/HelpModal';
 import { Gallery } from './components/Gallery';
 import { Bubble, ImageState, AIConfig, MaskRegion, DetectedBubble } from './types';
-import { Upload, Download, Plus, Maximize, Loader2, Settings, FileJson, Archive, Play, Layers, Image as ImageIcon, Undo2, Redo2, FileStack, Minus, Type, MessageSquareDashed, CircleHelp, Square, Crop, X, MousePointer2, Scan, ScanFace, FilePlus, ChevronUp, ChevronDown, Palette, Sparkles, ScanText, Zap } from 'lucide-react';
+import { Upload, Download, Plus, Maximize, Loader2, Settings, FileJson, Archive, Play, Layers, Image as ImageIcon, Undo2, Redo2, FileStack, Minus, Type, MessageSquareDashed, CircleHelp, Square, Crop, X, MousePointer2, Scan, ScanFace, FilePlus, ChevronUp, ChevronDown, Palette, Sparkles, ScanText, Zap, RefreshCw } from 'lucide-react';
 import { detectAndTypesetComic, DEFAULT_SYSTEM_PROMPT, fetchRawDetectedRegions } from './services/geminiService';
 import { downloadSingleImage, downloadAllAsZip, compositeImage, generateMaskedImage, detectBubbleColor } from './services/exportService';
 import { t } from './services/i18n';
@@ -188,7 +188,7 @@ const BubbleLayer: React.FC<BubbleLayerProps> = React.memo(({ bubble, isSelected
                 style={{ borderRadius: borderRadius }}
             ></div>
             <div 
-              className="absolute -top-8 left-1/2 -translate-x-1/2 cursor-pointer z-40 transform hover:scale-110 transition-transform"
+              className="absolute -top-12 left-1/2 -translate-x-1/2 cursor-pointer z-40 transform hover:scale-110 transition-transform"
               onMouseDown={(e) => { e.stopPropagation(); onDelete(); }}
             >
                <div className="bg-red-500 text-white rounded-full p-1.5 shadow-md border-2 border-white hover:bg-red-600">
@@ -270,7 +270,7 @@ const RegionLayer: React.FC<RegionLayerProps> = React.memo(({ region, isSelected
             {isSelected && (
                 <>
                     <div 
-                        className="absolute -top-8 left-1/2 -translate-x-1/2 cursor-pointer z-40 transform hover:scale-110 transition-transform"
+                        className="absolute -top-12 left-1/2 -translate-x-1/2 cursor-pointer z-40 transform hover:scale-110 transition-transform"
                         onMouseDown={(e) => { e.stopPropagation(); onDelete(); }}
                     >
                         <div className="bg-red-500 text-white rounded-full p-1.5 shadow-md border-2 border-white hover:bg-red-600">
@@ -482,7 +482,7 @@ const App: React.FC = () => {
           img.onload = () => {
             resolve({
               id: crypto.randomUUID(), name: file.name, url, base64,
-              width: img.width, height: img.height, bubbles: [], maskRegions: [], status: 'idle', skipped: false
+              width: img.width, height: img.height, bubbles: [], maskRegions: [], status: 'idle', detectionStatus: 'idle', skipped: false
             });
           };
           img.onerror = () => {
@@ -946,7 +946,38 @@ const App: React.FC = () => {
     }
   };
 
-  // Smart Batch Logic: Tries to resume unprocessed items; if none, processes all (re-run)
+  // NEW: Force Reprocess All Logic (Manual Trigger)
+  const handleForceBatchProcess = async () => {
+     if (isProcessingBatch) return;
+     
+     // Queue ALL non-skipped items
+     const queue = images.filter(img => !img.skipped);
+     if (queue.length === 0) {
+        alert("No images available to process.");
+        return;
+     }
+     
+     if (!confirm(`Are you sure you want to re-process ALL ${queue.length} images? This will consume API quota.`)) return;
+
+     const controller = new AbortController();
+     abortControllerRef.current = controller;
+     const signal = controller.signal;
+     setIsProcessingBatch(true);
+
+     try {
+        const batchSize = Math.max(1, concurrency);
+        for (let i = 0; i < queue.length; i += batchSize) {
+            if (signal.aborted) break;
+            const chunk = queue.slice(i, i + batchSize);
+            await Promise.all(chunk.map(img => runDetectionForImage(img, signal)));
+        }
+     } catch(e) { console.error(e); } finally {
+        setIsProcessingBatch(false);
+        abortControllerRef.current = null;
+     }
+  };
+
+  // Updated Standard Batch Logic: Only Process Pending
   const handleBatchProcess = async (onlyCurrent: boolean) => {
     if (isProcessingBatch) return;
     const controller = new AbortController();
@@ -958,16 +989,11 @@ const App: React.FC = () => {
         if (onlyCurrent && currentImage) {
           await runDetectionForImage(currentImage, signal);
         } else {
-          // 1. Try to find 'idle' or 'error' images (Resume mode)
-          let queue = images.filter(img => !img.skipped && (img.status === 'idle' || img.status === 'error'));
+          // STRICTLY only process idle/error images
+          const queue = images.filter(img => !img.skipped && (img.status === 'idle' || img.status === 'error'));
           
-          // 2. If no pending items, fallback to all non-skipped (Reprocess mode)
           if (queue.length === 0) {
-             queue = images.filter(img => !img.skipped);
-          }
-
-          if (queue.length === 0) {
-              alert("No images to process.");
+              alert("All images are already processed. Use the 'Force Reprocess' button (cycle icon) if you want to run them again.");
               return;
           }
 
@@ -998,10 +1024,13 @@ const App: React.FC = () => {
 
     try {
         const targets = batch 
-            ? images.filter(img => !img.skipped) 
+            ? images.filter(img => !img.skipped && img.detectionStatus !== 'done') // Only scan pending for detection
             : (currentImage ? [currentImage] : []);
 
-        if (targets.length === 0) return;
+        if (targets.length === 0) {
+            if (batch) alert("All images already scanned. (Force scan not implemented for detection)");
+            return;
+        }
 
         // Use concurrency for Local Scan too
         const batchSize = Math.max(1, concurrency);
@@ -1011,7 +1040,8 @@ const App: React.FC = () => {
              const chunk = targets.slice(i, i + batchSize);
              
              await Promise.all(chunk.map(async (img) => {
-                 setImages(prev => prev.map(p => p.id === img.id ? { ...p, status: 'processing' } : p));
+                 // UPDATE: Use detectionStatus instead of main status
+                 setImages(prev => prev.map(p => p.id === img.id ? { ...p, detectionStatus: 'processing' } : p));
                  try {
                      const regions = await fetchRawDetectedRegions(img.base64, aiConfig.textDetectionApiUrl!);
                      const maskRegions: MaskRegion[] = regions.map(r => ({
@@ -1022,11 +1052,11 @@ const App: React.FC = () => {
                      setImages(prev => prev.map(p => p.id === img.id ? { 
                          ...p, 
                          maskRegions: [...(p.maskRegions || []), ...maskRegions], // Append
-                         status: 'done' 
+                         detectionStatus: 'done' // UPDATE
                      } : p));
                  } catch (e) {
                      console.error(e);
-                     setImages(prev => prev.map(p => p.id === img.id ? { ...p, status: 'error' } : p));
+                     setImages(prev => prev.map(p => p.id === img.id ? { ...p, detectionStatus: 'error' } : p)); // UPDATE
                  }
              }));
         }
@@ -1131,29 +1161,36 @@ const App: React.FC = () => {
                         ) : (
                             <>
                                 {drawTool === 'none' && (
-                                    <div className="grid grid-cols-5 gap-1 h-full">
+                                    <div className="flex gap-1 h-full">
                                         <button 
                                             onClick={() => handleBatchProcess(true)} 
                                             disabled={!currentImage}
-                                            className="col-span-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50 shadow-sm"
+                                            className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50 shadow-sm px-2"
                                             title={t('current', lang)}
                                         >
                                             <Sparkles size={14}/> {t('current', lang)}
                                         </button>
                                         <button 
                                             onClick={() => handleBatchProcess(false)}
-                                            className="col-span-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs flex items-center justify-center gap-1"
-                                            title={t('processAll', lang)}
+                                            className="flex-[1.5] bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs flex items-center justify-center gap-1 px-2"
+                                            title="Process Pending (Auto)"
                                         >
                                             <Layers size={14}/> {t('processAll', lang)}
                                         </button>
                                         <button 
+                                            onClick={handleForceBatchProcess}
+                                            className="w-10 bg-gray-700 hover:bg-gray-600 text-yellow-500 rounded text-xs flex items-center justify-center"
+                                            title="Force Reprocess ALL"
+                                        >
+                                            <RefreshCw size={14} />
+                                        </button>
+                                        <button 
                                             onClick={() => setShowManualJson(true)} 
                                             disabled={!currentImage} 
-                                            className="col-span-1 bg-teal-900/40 hover:bg-teal-800/60 border border-teal-800 text-teal-200 rounded text-xs flex items-center justify-center" 
+                                            className="w-8 bg-teal-900/40 hover:bg-teal-800/60 border border-teal-800 text-teal-200 rounded text-xs flex items-center justify-center" 
                                             title={t('importJson', lang)}
                                         >
-                                            <FileJson size={16}/>
+                                            <FileJson size={14}/>
                                         </button>
                                     </div>
                                 )}
@@ -1221,10 +1258,9 @@ const App: React.FC = () => {
                                 <input 
                                     type="number" 
                                     min="1" 
-                                    max="10" 
                                     value={concurrency} 
-                                    onChange={(e) => setConcurrency(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                                    className="w-6 bg-transparent text-[10px] text-center text-gray-300 outline-none appearance-none"
+                                    onChange={(e) => setConcurrency(Math.max(1, parseInt(e.target.value) || 1))}
+                                    className="w-8 bg-transparent text-[10px] text-center text-gray-300 outline-none appearance-none"
                                 />
                             </div>
                         </div>

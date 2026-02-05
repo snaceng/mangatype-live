@@ -330,10 +330,16 @@ export const fetchRawDetectedRegions = async (base64Image: string, apiUrl: strin
             body: JSON.stringify(payload)
         });
 
-        if (!response.ok) return [];
+        if (!response.ok) {
+            throw new Error(`Detection API responded with ${response.status}`);
+        }
 
         const data = await response.json();
-        if (!data.success || !data.text_blocks || !data.image_size) return [];
+        if (!data.success) {
+            throw new Error(data.error || "API returned failure");
+        }
+        
+        if (!data.text_blocks || !data.image_size) return [];
 
         const { width: imgW, height: imgH } = data.image_size;
         
@@ -354,7 +360,7 @@ export const fetchRawDetectedRegions = async (base64Image: string, apiUrl: strin
 
     } catch (e) {
         console.warn("External detection API failed:", e);
-        return [];
+        throw e; // Re-throw to let the UI know it failed
     }
 };
 

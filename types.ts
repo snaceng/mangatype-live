@@ -49,8 +49,14 @@ export interface ImageState {
   height: number;
   bubbles: Bubble[];
   maskRegions?: MaskRegion[]; // Store Mode 2 regions
+  
+  // Translation (AI) Status
   status: 'idle' | 'processing' | 'done' | 'error';
-  errorMessage?: string; // Reason for failure
+  errorMessage?: string; 
+  
+  // Local Detection Status (Separate)
+  detectionStatus?: 'idle' | 'processing' | 'done' | 'error';
+  
   skipped?: boolean; // If true, skip AI processing but include in export
 }
 

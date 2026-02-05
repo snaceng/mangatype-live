@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ImageState, AIConfig } from '../types';
-import { X, Trash2, CheckCircle, Loader2, XCircle, Ban, FilePlus, FolderPlus } from 'lucide-react';
+import { X, Trash2, CheckCircle, Loader2, XCircle, Ban, FilePlus, FolderPlus, ScanText, AlertTriangle } from 'lucide-react';
 import { t } from '../services/i18n';
 
 interface GalleryProps {
@@ -116,14 +115,17 @@ export const Gallery: React.FC<GalleryProps> = ({ images, currentId, config, onS
                     <Ban size={12} />
                 </button>
 
-                {/* Status Indicator - z-10 to stay above filename overlay */}
-                <div 
-                    className="absolute bottom-1 right-1 z-10"
-                    title={img.status === 'error' ? (img.errorMessage || 'Error') : ''}
-                >
-                    {img.status === 'processing' && <Loader2 size={16} className="text-blue-400 animate-spin bg-gray-900/50 rounded-full p-0.5" />}
-                    {img.status === 'done' && <CheckCircle size={16} className="text-green-400 bg-gray-900/50 rounded-full" />}
-                    {img.status === 'error' && <XCircle size={16} className="text-red-400 bg-gray-900/50 rounded-full" />}
+                {/* Status Indicators - Bottom Right */}
+                <div className="absolute bottom-1 right-1 z-10 flex gap-1 bg-gray-900/70 p-0.5 rounded-full backdrop-blur-sm">
+                    {/* Detection Status (Orange) */}
+                    {img.detectionStatus === 'processing' && <Loader2 size={14} className="text-orange-400 animate-spin" />}
+                    {img.detectionStatus === 'done' && <ScanText size={14} className="text-orange-400" />}
+                    {img.detectionStatus === 'error' && <AlertTriangle size={14} className="text-orange-500" />}
+
+                    {/* Translation Status (Blue/Green/Red) */}
+                    {img.status === 'processing' && <Loader2 size={14} className="text-blue-400 animate-spin" />}
+                    {img.status === 'done' && <CheckCircle size={14} className="text-green-400" />}
+                    {img.status === 'error' && <XCircle size={14} className="text-red-400" />}
                 </div>
 
                 {/* Delete Overlay */}
