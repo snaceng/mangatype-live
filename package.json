@@ -1,5 +1,5 @@
 {
-  "name": "mangatype-live-16（翻译重构+并发）",
+  "name": "copy-of-mangatype-live-16（代码拆分）",
   "private": true,
   "version": "0.0.0",
   "type": "module",

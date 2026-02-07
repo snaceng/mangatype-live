@@ -1,24 +1,36 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { ImageState, AIConfig } from '../types';
 import { X, Trash2, CheckCircle, Loader2, XCircle, Ban, FilePlus, FolderPlus, ScanText, AlertTriangle } from 'lucide-react';
 import { t } from '../services/i18n';
+import { useProjectContext } from '../contexts/ProjectContext';
 
 interface GalleryProps {
-  images: ImageState[];
-  currentId: string | null;
-  config: AIConfig;
-  onSelect: (id: string) => void;
-  onDelete: (id: string) => void;
-  onClearAll: () => void;
-  onToggleSkip: (id: string) => void;
   onAddFile: () => void;
   onAddFolder: () => void;
 }
 
-export const Gallery: React.FC<GalleryProps> = ({ images, currentId, config, onSelect, onDelete, onClearAll, onToggleSkip, onAddFile, onAddFolder }) => {
+export const Gallery: React.FC<GalleryProps> = ({ onAddFile, onAddFolder }) => {
+  const { 
+    images, currentId, setCurrentId, setImages, 
+    aiConfig,
+  } = useProjectContext();
+  
   const [clearStage, setClearStage] = useState(0); // 0 = normal, 1 = confirm
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lang = config.language || 'zh';
+  const lang = aiConfig.language || 'zh';
+
+  const onSelect = (id: string) => setCurrentId(id);
+  
+  const onDelete = (id: string) => { 
+    setImages(prev => prev.filter(i => i.id !== id)); 
+    if (currentId === id) setCurrentId(null); 
+  };
+  
+  const onToggleSkip = (id: string) => {
+    setImages(prev => prev.map(img => img.id === id ? { ...img, skipped: !img.skipped } : img));
+  };
+  
+  const onClearAll = () => { setImages([]); setCurrentId(null); };
 
   const handleClearClick = () => {
     if (clearStage === 0) {

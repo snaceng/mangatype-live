@@ -361,7 +361,7 @@ export const downloadSingleImage = async (imageState: ImageState) => {
 };
 
 export const downloadAllAsZip = async (
-    images: ImageState[],
+    images: ImageState[], 
     onProgress?: (current: number, total: number) => void
 ) => {
   const zip = new JSZip();

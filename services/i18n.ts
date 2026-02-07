@@ -112,6 +112,7 @@ export const translations = {
     shapeEllipse: "椭圆",
     cornerRadius: "圆角半径",
     feathering: "羽化程度",
+    resetStatus: "重置状态",
     helpDocs: {
       title: "使用指南",
       intro: "MangaType Live 是一个网页原生的漫画嵌字工具，集成了 AI 翻译和自动化排版功能。",
@@ -264,6 +265,7 @@ export const translations = {
     shapeEllipse: "Ellipse",
     cornerRadius: "Corner Radius",
     feathering: "Feathering",
+    resetStatus: "Reset Status",
     helpDocs: {
       title: "User Guide",
       intro: "MangaType Live is a web-native comic typesetting tool with integrated AI translation and automated layout features.",

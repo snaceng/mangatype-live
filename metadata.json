@@ -1,5 +1,5 @@
 {
-  "name": "MangaType Live 16（翻译重构+并发）",
+  "name": "Copy of MangaType Live 16（代码拆分）",
   "description": "A web-native comic typesetting tool. Overlay HTML text on images with vertical writing support, Google Fonts integration, and Gemini AI assistance for dialogue polishing.",
   "requestFramePermissions": []
 }

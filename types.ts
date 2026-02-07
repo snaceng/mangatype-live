@@ -38,6 +38,7 @@ export interface DetectedBubble {
   height: number;
   isVertical: boolean;
   rotation?: number; // Added rotation support from AI
+  fontFamily?: 'noto' | 'zhimang' | 'mashan'; // Added font support from AI
 }
 
 export interface ImageState {
@@ -112,3 +113,5 @@ declare global {
     EyeDropper: any;
   }
 }
+
+export type HandleType = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';

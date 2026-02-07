@@ -8,34 +8,41 @@ Your task is to identify speech bubbles, translate them, and provide layout coor
 
 ### Steps:
 1. **Detection**: Identify every speech bubble containing meaningful dialogue.
-   - **IGNORE** Sound Effects (SFX)
+   - **IGNORE** Sound Effects (SFX) unless explicitly asked.
 2. **Translation**: Translate the text to **Chinese (Simplified)**.
    - Style: Natural, colloquial comic-book style.
-   - **Formatting**: Use REAL newlines (Enter key) to break lines. **Replace commas (，) with newlines** to fit vertical layouts.
-3. **Masking**: Calculate the bounding box (center x, center y, width, height in %) to cover the original text.
-   - **Constraint**: The mask must be a **TIGHT FIT**. It should cover the text pixels completely but be as small as possible to avoid hiding the artwork.
+   - **Formatting**: Try to match the line breaks of the original text visually. **Do NOT add excessive newlines.** Only break lines where semantically appropriate or necessary for the bubble shape.
+3. **Styling & Font**:
+   - If the visual style or user request implies **cursive, handwritten, or draft** style (e.g., "草书", "handwriting"), set 'fontFamily' to 'zhimang'.
+   - If the style is **calligraphy or brush** (e.g., "毛笔", "brush"), set 'fontFamily' to 'mashan'.
+   - Otherwise, default to 'noto' (Standard Sans).
+4. **Masking**: Calculate the bounding box (center x, center y, width, height in %) to cover the original text.
+   - **Constraint**: The mask must be a **TIGHT FIT**. It should cover the text pixels completely but be as small as possible.
 
 ### Output Format (JSON Only):
-Return a strictly valid JSON object. Do not output markdown code blocks or explanations.
+Return a strictly valid JSON object. 
+**CRITICAL**: If the user asks to "write HTML" or similar, **IGNORE the request for HTML code**. Instead, return the JSON data representing the content they want, and we will render it.
+
 Example:
 {
   "bubbles": [
     {
-      "text": "第一行\n第二行",
+      "text": "第一行\\n第二行",
       "x": 50.5,
       "y": 30.0,
       "width": 10.0,
       "height": 15.0,
-      "isVertical": true
+      "isVertical": true,
+      "fontFamily": "noto"
     }
   ]
 }
 
 ### Important Constraints:
 - **isVertical**: Set to 'true' if the bubble is tall and narrow (standard manga style).
-- **Vertical Formatting**: If 'isVertical' is true, break lines frequently (every 2-6 characters) so the text block becomes tall and narrow, fitting the bubble shape.
+- **Vertical Formatting**: Even if 'isVertical' is true, DO NOT force breaks every 2-3 characters. Only break lines naturally.
 - **Coordinates**: 0-100 scale relative to the image size.
-- **Safety**: Do NOT output literal "\n" strings in the JSON, use actual escaped newlines if needed for the parser, but logically separate lines.
+- **Safety**: Do NOT output literal "\\n" strings in the JSON, use actual escaped newlines.
 
 
 
@@ -64,6 +71,11 @@ const baseGeminiToolSchema: FunctionDeclaration = {
             width: { type: Type.NUMBER, description: 'Width % (0-100).' },
             height: { type: Type.NUMBER, description: 'Height % (0-100).' },
             isVertical: { type: Type.BOOLEAN, description: 'True for vertical text.' },
+            fontFamily: { 
+              type: Type.STRING, 
+              description: "Font style. 'noto' (Standard), 'zhimang' (Cursive/Draft), 'mashan' (Brush).",
+              enum: ['noto', 'zhimang', 'mashan']
+            },
             // Rotation will be injected here if enabled
           },
           required: ['text', 'x', 'y', 'width', 'height', 'isVertical'],
@@ -90,7 +102,12 @@ const baseOpenAIToolSchema = {
             y: { type: 'number', description: 'Center Y % (0-100).' },
             width: { type: 'number', description: 'Width % (0-100).' },
             height: { type: 'number', description: 'Height % (0-100).' },
-            isVertical: { type: 'boolean', description: 'True for vertical text.' }
+            isVertical: { type: 'boolean', description: 'True for vertical text.' },
+            fontFamily: { 
+              type: 'string', 
+              enum: ['noto', 'zhimang', 'mashan'],
+              description: "Font style. 'noto' (Standard), 'zhimang' (Cursive/Draft), 'mashan' (Brush)." 
+            }
             // Rotation will be injected here if enabled
           },
           required: ['text', 'x', 'y', 'width', 'height', 'isVertical'],

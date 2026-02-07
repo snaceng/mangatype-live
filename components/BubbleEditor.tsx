@@ -1,17 +1,10 @@
 
-
 import React, { useState } from 'react';
-import { Bubble, FONTS, AIConfig } from '../types';
+import { FONTS } from '../types';
 import { Trash2, Type, AlignVerticalJustifyCenter, AlignHorizontalJustifyCenter, Sparkles, RotateCw, Maximize2, Palette, Minus, Plus, Pipette, Hash, Ban, Square, Circle, Box } from 'lucide-react';
 import { polishDialogue } from '../services/geminiService';
 import { t } from '../services/i18n';
-
-interface BubbleEditorProps {
-  bubble: Bubble;
-  config: AIConfig;
-  onUpdate: (id: string, updates: Partial<Bubble>) => void;
-  onDelete: (id: string) => void;
-}
+import { useProjectContext } from '../contexts/ProjectContext';
 
 const PRESET_COLORS = [
   '#ffffff', // White
@@ -23,16 +16,21 @@ const PRESET_COLORS = [
   '#bfdbfe', // Blue-200
 ];
 
-export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUpdate, onDelete }) => {
+export const BubbleEditor: React.FC = () => {
+  const { currentImage, selectedBubbleId, updateBubble, deleteCurrentSelection, aiConfig } = useProjectContext();
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const lang = config.language || 'zh';
+  const lang = aiConfig.language || 'zh';
+
+  const bubble = currentImage?.bubbles.find(b => b.id === selectedBubbleId);
+
+  if (!bubble) return null;
 
   const handleAiPolish = async (style: 'dramatic' | 'casual' | 'english') => {
     if (!bubble.text.trim()) return;
     setIsAiLoading(true);
     try {
-      const newText = await polishDialogue(bubble.text, style, config);
-      onUpdate(bubble.id, { text: newText });
+      const newText = await polishDialogue(bubble.text, style, aiConfig);
+      updateBubble(bubble.id, { text: newText });
     } catch (e) {
       console.error("AI Request Failed", e);
     } finally {
@@ -40,16 +38,14 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
     }
   };
   
-  // Calculate effective auto-detect state
-  const isAutoDetectEnabled = bubble.autoDetectBackground ?? config.autoDetectBackground ?? false;
+  const isAutoDetectEnabled = bubble.autoDetectBackground ?? aiConfig.autoDetectBackground ?? false;
 
-  // Use effective values (fallback to global defaults if undefined in bubble)
-  const currentShape = bubble.maskShape || config.defaultMaskShape || 'ellipse';
-  const currentRadius = bubble.maskCornerRadius !== undefined ? bubble.maskCornerRadius : (config.defaultMaskCornerRadius || 15);
-  const currentFeather = bubble.maskFeather !== undefined ? bubble.maskFeather : (config.defaultMaskFeather || 10);
+  const currentShape = bubble.maskShape || aiConfig.defaultMaskShape || 'ellipse';
+  const currentRadius = bubble.maskCornerRadius !== undefined ? bubble.maskCornerRadius : (aiConfig.defaultMaskCornerRadius || 15);
+  const currentFeather = bubble.maskFeather !== undefined ? bubble.maskFeather : (aiConfig.defaultMaskFeather || 10);
 
   const handleManualColorChange = (color: string) => {
-    onUpdate(bubble.id, { 
+    updateBubble(bubble.id, { 
         backgroundColor: color,
         autoDetectBackground: false // Disable auto-detect when manually picking
     });
@@ -77,7 +73,7 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
            {t('properties', lang)}
         </h3>
         <button 
-          onClick={() => onDelete(bubble.id)}
+          onClick={deleteCurrentSelection}
           className="text-red-400 hover:text-red-300 p-1.5 rounded hover:bg-red-900/30 transition-colors"
           title={t('deleteBubble', lang)}
         >
@@ -93,7 +89,7 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
           <label className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('content', lang)}</label>
           <textarea
             value={bubble.text}
-            onChange={(e) => onUpdate(bubble.id, { text: e.target.value })}
+            onChange={(e) => updateBubble(bubble.id, { text: e.target.value })}
             className="w-full bg-gray-800 border border-gray-700 rounded p-3 text-sm focus:border-blue-500 outline-none resize-none font-sans transition-colors"
             rows={5}
             placeholder={t('enterText', lang)}
@@ -146,17 +142,17 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
                   <span>{bubble.width.toFixed(1)}%</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => onUpdate(bubble.id, { width: Math.max(5, bubble.width - 0.5) })} className="p-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-400 hover:text-white"><Minus size={12}/></button>
+                    <button onClick={() => updateBubble(bubble.id, { width: Math.max(5, bubble.width - 0.5) })} className="p-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-400 hover:text-white"><Minus size={12}/></button>
                     <input
                     type="range"
                     min="5"
                     max="50"
                     step="0.5"
                     value={bubble.width}
-                    onChange={(e) => onUpdate(bubble.id, { width: parseFloat(e.target.value) })}
+                    onChange={(e) => updateBubble(bubble.id, { width: parseFloat(e.target.value) })}
                     className="flex-1 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
-                    <button onClick={() => onUpdate(bubble.id, { width: Math.min(50, bubble.width + 0.5) })} className="p-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-400 hover:text-white"><Plus size={12}/></button>
+                    <button onClick={() => updateBubble(bubble.id, { width: Math.min(50, bubble.width + 0.5) })} className="p-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-400 hover:text-white"><Plus size={12}/></button>
                 </div>
               </div>
               <div>
@@ -165,17 +161,17 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
                   <span>{bubble.height.toFixed(1)}%</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => onUpdate(bubble.id, { height: Math.max(5, bubble.height - 0.5) })} className="p-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-400 hover:text-white"><Minus size={12}/></button>
+                    <button onClick={() => updateBubble(bubble.id, { height: Math.max(5, bubble.height - 0.5) })} className="p-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-400 hover:text-white"><Minus size={12}/></button>
                     <input
                     type="range"
                     min="5"
                     max="50"
                     step="0.5"
                     value={bubble.height}
-                    onChange={(e) => onUpdate(bubble.id, { height: parseFloat(e.target.value) })}
+                    onChange={(e) => updateBubble(bubble.id, { height: parseFloat(e.target.value) })}
                     className="flex-1 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
-                    <button onClick={() => onUpdate(bubble.id, { height: Math.min(50, bubble.height + 0.5) })} className="p-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-400 hover:text-white"><Plus size={12}/></button>
+                    <button onClick={() => updateBubble(bubble.id, { height: Math.min(50, bubble.height + 0.5) })} className="p-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-400 hover:text-white"><Plus size={12}/></button>
                 </div>
               </div>
            </div>
@@ -191,7 +187,7 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
                     ].map((opt) => (
                         <button
                             key={opt.id}
-                            onClick={() => onUpdate(bubble.id, { maskShape: opt.id as any })}
+                            onClick={() => updateBubble(bubble.id, { maskShape: opt.id as any })}
                             title={opt.title}
                             className={`flex items-center justify-center p-2 rounded border transition-all ${
                                 currentShape === opt.id 
@@ -217,7 +213,7 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
                             max="50"
                             step="1"
                             value={currentRadius}
-                            onChange={(e) => onUpdate(bubble.id, { maskCornerRadius: parseInt(e.target.value) })}
+                            onChange={(e) => updateBubble(bubble.id, { maskCornerRadius: parseInt(e.target.value) })}
                             className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                         />
                     </div>
@@ -235,7 +231,7 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
                         max="50"
                         step="1"
                         value={currentFeather}
-                        onChange={(e) => onUpdate(bubble.id, { maskFeather: parseInt(e.target.value) })}
+                        onChange={(e) => updateBubble(bubble.id, { maskFeather: parseInt(e.target.value) })}
                         className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
                     />
                 </div>
@@ -256,7 +252,7 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
                         type="checkbox" 
                         className="sr-only peer"
                         checked={isAutoDetectEnabled}
-                        onChange={(e) => onUpdate(bubble.id, { autoDetectBackground: e.target.checked })}
+                        onChange={(e) => updateBubble(bubble.id, { autoDetectBackground: e.target.checked })}
                     />
                     <div className="w-8 h-4 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyan-600"></div>
                 </label>
@@ -343,14 +339,14 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
               <span className="text-[10px] text-gray-400 block mb-1">{t('direction', lang)}</span>
               <div className="flex bg-gray-800 rounded p-1 border border-gray-700">
                 <button
-                  onClick={() => onUpdate(bubble.id, { isVertical: false })}
+                  onClick={() => updateBubble(bubble.id, { isVertical: false })}
                   className={`flex-1 flex justify-center py-1.5 rounded transition-all ${!bubble.isVertical ? 'bg-gray-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
                   title={t('horizontal', lang)}
                 >
                   <AlignHorizontalJustifyCenter size={16} />
                 </button>
                 <button
-                  onClick={() => onUpdate(bubble.id, { isVertical: true })}
+                  onClick={() => updateBubble(bubble.id, { isVertical: true })}
                   className={`flex-1 flex justify-center py-1.5 rounded transition-all ${bubble.isVertical ? 'bg-gray-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
                   title={t('vertical', lang)}
                 >
@@ -366,17 +362,17 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
                   <span>{bubble.fontSize.toFixed(1)}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => onUpdate(bubble.id, { fontSize: parseFloat(Math.max(0.5, bubble.fontSize - 0.1).toFixed(1)) })} className="p-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-400 hover:text-white"><Minus size={12}/></button>
+                    <button onClick={() => updateBubble(bubble.id, { fontSize: parseFloat(Math.max(0.5, bubble.fontSize - 0.1).toFixed(1)) })} className="p-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-400 hover:text-white"><Minus size={12}/></button>
                     <input
                         type="range"
                         min="0.5"
                         max="10" 
                         step="0.1"
                         value={bubble.fontSize}
-                        onChange={(e) => onUpdate(bubble.id, { fontSize: parseFloat(e.target.value) })}
+                        onChange={(e) => updateBubble(bubble.id, { fontSize: parseFloat(e.target.value) })}
                         className="flex-1 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
-                    <button onClick={() => onUpdate(bubble.id, { fontSize: parseFloat(Math.min(10, bubble.fontSize + 0.1).toFixed(1)) })} className="p-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-400 hover:text-white"><Plus size={12}/></button>
+                    <button onClick={() => updateBubble(bubble.id, { fontSize: parseFloat(Math.min(10, bubble.fontSize + 0.1).toFixed(1)) })} className="p-1 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-400 hover:text-white"><Plus size={12}/></button>
                 </div>
             </div>
 
@@ -392,7 +388,7 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
                 max="45"
                 step="1"
                 value={bubble.rotation}
-                onChange={(e) => onUpdate(bubble.id, { rotation: parseInt(e.target.value) })}
+                onChange={(e) => updateBubble(bubble.id, { rotation: parseInt(e.target.value) })}
                 className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
@@ -406,7 +402,7 @@ export const BubbleEditor: React.FC<BubbleEditorProps> = ({ bubble, config, onUp
             {FONTS.map(font => (
               <button
                 key={font.id}
-                onClick={() => onUpdate(bubble.id, { fontFamily: font.id })}
+                onClick={() => updateBubble(bubble.id, { fontFamily: font.id })}
                 className={`text-left px-3 py-3 rounded border transition-all flex justify-between items-center ${bubble.fontFamily === font.id ? 'border-blue-500 bg-blue-900/20 text-white' : 'border-gray-700 bg-gray-800/50 hover:bg-gray-700 text-gray-400'}`}
               >
                 <span className="text-xs opacity-70 font-sans">{font.name.split('(')[0]}</span>

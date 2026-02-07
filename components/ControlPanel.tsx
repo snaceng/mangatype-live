@@ -1,0 +1,300 @@
+
+import React from 'react';
+import { MousePointer2, MessageSquareDashed, Scan, Square, Sparkles, Layers, RefreshCw, FileJson, ScanText, Palette, Zap, Loader2, FileStack, Image as ImageIcon, Archive, Type, Minus, Plus, ChevronDown, Plus as PlusIcon } from 'lucide-react';
+import { t } from '../services/i18n';
+import { useProjectContext } from '../contexts/ProjectContext';
+import { createBubble } from '../utils/editorUtils';
+import { compositeImage, downloadAllAsZip, downloadSingleImage } from '../services/exportService';
+
+export const ControlPanel: React.FC = () => {
+  const {
+    currentImage, images, setImages, 
+    currentId, setSelectedBubbleId, setSelectedMaskId, updateImageBubbles,
+    aiConfig,
+    // Processing state
+    isProcessingBatch, handleBatchProcess, handleResetStatus, stopProcessing, handleLocalDetectionScan,
+    // UI state
+    drawTool, setDrawTool, 
+    showGlobalStyles, setShowGlobalStyles,
+    concurrency, setConcurrency,
+    isMerging, setIsMerging,
+    isZipping, setIsZipping,
+    zipProgress, setZipProgress,
+    setShowManualJson
+  } = useProjectContext();
+
+  const lang = aiConfig.language;
+  const bubbles = currentImage?.bubbles || [];
+
+  const handleToolChange = (tool: 'none' | 'bubble' | 'mask') => {
+      setDrawTool(tool);
+      setSelectedBubbleId(null);
+      setSelectedMaskId(null);
+  };
+
+  const onAddManualBubble = () => {
+    if (!currentId) return;
+    const newBubble = createBubble(50, 50, aiConfig.defaultFontSize);
+    updateImageBubbles(currentId, [...bubbles, newBubble]);
+    setSelectedBubbleId(newBubble.id); setSelectedMaskId(null);
+  };
+
+  // --- Global Style Actions ---
+  const onGlobalFontScale = (factor: number) => {
+    if (!currentImage) return;
+    const newBubbles = currentImage.bubbles.map(b => ({ ...b, fontSize: Math.max(0.5, Math.min(5.0, parseFloat((b.fontSize * factor).toFixed(2)))) }));
+    updateImageBubbles(currentImage.id, newBubbles);
+  };
+  const onGlobalMaskScale = (factor: number) => {
+    if (!currentImage) return;
+    const newBubbles = currentImage.bubbles.map(b => ({ ...b, width: Math.max(2, Math.min(100, parseFloat((b.width * factor).toFixed(1)))), height: Math.max(2, Math.min(100, parseFloat((b.height * factor).toFixed(1)))) }));
+    updateImageBubbles(currentImage.id, newBubbles);
+  };
+  const onGlobalFontFamily = (fontFamily: any) => {
+      if (!currentImage) return;
+      updateImageBubbles(currentImage.id, currentImage.bubbles.map(b => ({ ...b, fontFamily })));
+  };
+
+  // --- Export Actions ---
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const onMergeLayers = async () => {
+    if (!currentImage || currentImage.bubbles.length === 0) return;
+    setIsMerging(true);
+    try {
+        const blob = await compositeImage(currentImage);
+        if (blob) {
+            const newUrl = URL.createObjectURL(blob);
+            const newBase64 = await blobToBase64(blob);
+            setImages(prev => prev.map(img => img.id === currentImage.id ? { ...img, url: newUrl, base64: newBase64, bubbles: [] } : img));
+            setSelectedBubbleId(null);
+        }
+    } catch (e) { console.error("Merge failed", e); alert("Failed to merge layers."); } finally { setIsMerging(false); }
+  };
+
+  const onZipDownload = async () => {
+    if (images.length === 0 || isZipping) return;
+    setIsZipping(true); setZipProgress({ current: 0, total: images.length });
+    try { await downloadAllAsZip(images, (curr, total) => { setZipProgress({ current: curr, total }); }); } catch (e) { console.error(e); alert("Zip creation failed"); } finally { setIsZipping(false); setZipProgress({ current: 0, total: 0 }); }
+  };
+
+  return (
+    <div className="bg-gray-900 border-t border-gray-800 shrink-0 flex flex-col relative z-20">
+      {/* Global Styles Popup */}
+      {showGlobalStyles && (
+        <div className="bg-gray-800/95 border-t border-gray-700 p-3 space-y-2 animate-slide-up-fade shadow-xl absolute bottom-full w-full z-10">
+          <div className="flex justify-between items-center mb-1">
+            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
+              <Type size={10} /> {t('globalStyles', lang)}
+            </div>
+            <button onClick={() => setShowGlobalStyles(false)} className="text-gray-500 hover:text-white">
+              <ChevronDown size={14} />
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 shrink-0 flex justify-center text-gray-400" title="Font Size"><Type size={14} /></div>
+            <div className="flex flex-1 gap-1">
+              <button onClick={() => onGlobalFontScale(0.9)} disabled={!currentImage || currentImage.bubbles.length === 0} className="flex-1 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs text-gray-200 flex items-center justify-center gap-1"><Minus size={12} /></button>
+              <button onClick={() => onGlobalFontScale(1.1)} disabled={!currentImage || currentImage.bubbles.length === 0} className="flex-1 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs text-gray-200 flex items-center justify-center gap-1"><Plus size={12} /></button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 shrink-0 flex justify-center text-gray-400" title="Mask Size"><Scan size={14} /></div>
+            <div className="flex flex-1 gap-1">
+              <button onClick={() => onGlobalMaskScale(0.9)} disabled={!currentImage || currentImage.bubbles.length === 0} className="flex-1 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs text-gray-200 flex items-center justify-center gap-1"><Minus size={12} /></button>
+              <button onClick={() => onGlobalMaskScale(1.1)} disabled={!currentImage || currentImage.bubbles.length === 0} className="flex-1 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs text-gray-200 flex items-center justify-center gap-1"><Plus size={12} /></button>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-1 mt-1">
+            <button onClick={() => onGlobalFontFamily('noto')} className="text-[10px] py-1.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-gray-300">Noto</button>
+            <button onClick={() => onGlobalFontFamily('zhimang')} className="text-[10px] py-1.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-gray-300 font-zhimang">Zhi</button>
+            <button onClick={() => onGlobalFontFamily('mashan')} className="text-[10px] py-1.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-gray-300 font-mashan">Ma</button>
+          </div>
+        </div>
+      )}
+
+      <div className="p-3 space-y-3">
+        {/* Tool Switcher */}
+        <div className="flex p-1 bg-gray-800 rounded-lg">
+          <button
+            onClick={() => handleToolChange('none')}
+            className={`flex-1 py-1 text-xs rounded-md transition-all flex items-center justify-center gap-1 ${drawTool === 'none' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+          >
+            <MousePointer2 size={12} /> View
+          </button>
+          <button
+            onClick={() => handleToolChange('bubble')}
+            className={`flex-1 py-1 text-xs rounded-md transition-all flex items-center justify-center gap-1 ${drawTool === 'bubble' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+          >
+            <MessageSquareDashed size={12} /> Bubble
+          </button>
+          <button
+            onClick={() => handleToolChange('mask')}
+            className={`flex-1 py-1 text-xs rounded-md transition-all flex items-center justify-center gap-1 ${drawTool === 'mask' ? 'bg-red-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+          >
+            <Scan size={12} /> Mask
+          </button>
+        </div>
+
+        {/* Action Buttons Area */}
+        <div className="h-10 relative">
+          {isProcessingBatch ? (
+            <button
+              onClick={stopProcessing}
+              className="w-full h-full bg-red-900/50 hover:bg-red-800 border border-red-700 rounded text-xs text-red-200 flex items-center justify-center gap-2 animate-pulse"
+            >
+              <Square size={12} fill="currentColor" /> {t('stop', lang)}
+            </button>
+          ) : (
+            <>
+              {drawTool === 'none' && (
+                <div className="flex gap-1 h-full">
+                  <button
+                    onClick={() => handleBatchProcess(currentImage, true, concurrency)}
+                    disabled={!currentImage}
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50 shadow-sm px-2"
+                    title={t('current', lang)}
+                  >
+                    <Sparkles size={14} /> {t('current', lang)}
+                  </button>
+                  <button
+                    onClick={() => handleBatchProcess(currentImage, false, concurrency)}
+                    className="flex-[1.5] bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs flex items-center justify-center gap-1 px-2"
+                    title="Process Pending (Auto)"
+                  >
+                    <Layers size={14} /> {t('processAll', lang)}
+                  </button>
+                  <button
+                    onClick={handleResetStatus}
+                    className="w-10 bg-gray-700 hover:bg-gray-600 text-yellow-500 rounded text-xs flex items-center justify-center"
+                    title={t('resetStatus', lang)}
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                  <button
+                    onClick={() => setShowManualJson(true)}
+                    disabled={!currentImage}
+                    className="w-8 bg-teal-900/40 hover:bg-teal-800/60 border border-teal-800 text-teal-200 rounded text-xs flex items-center justify-center"
+                    title={t('importJson', lang)}
+                  >
+                    <FileJson size={14} />
+                  </button>
+                </div>
+              )}
+
+              {drawTool === 'mask' && (
+                <div className="grid grid-cols-4 gap-1 h-full">
+                  <button
+                    onClick={() => handleBatchProcess(currentImage, true, concurrency)}
+                    disabled={!currentImage}
+                    className="bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50 shadow-sm"
+                    title={t('current', lang)}
+                  >
+                    <Sparkles size={14} /> Trans.
+                  </button>
+                  <button
+                    onClick={() => handleBatchProcess(currentImage, false, concurrency)}
+                    className="bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs flex items-center justify-center gap-1"
+                    title={t('processAll', lang)}
+                  >
+                    <Layers size={14} /> Batch
+                  </button>
+                  <button
+                    onClick={() => handleLocalDetectionScan(currentImage, false, concurrency)}
+                    className="bg-orange-900/40 hover:bg-orange-800/60 border border-orange-800 text-orange-200 rounded text-xs flex items-center justify-center gap-1 disabled:opacity-50"
+                    title="Scan Current (Local Detect)"
+                  >
+                    <ScanText size={14} /> Scan
+                  </button>
+                  <button
+                    onClick={() => handleLocalDetectionScan(currentImage, true, concurrency)}
+                    className="bg-orange-900/40 hover:bg-orange-800/60 border border-orange-800 text-orange-200 rounded text-xs flex items-center justify-center gap-1 disabled:opacity-50"
+                    title="Scan All (Local Detect)"
+                  >
+                    <Layers size={14} /> All
+                  </button>
+                </div>
+              )}
+
+              {drawTool === 'bubble' && (
+                <button
+                  onClick={onAddManualBubble}
+                  disabled={!currentImage}
+                  className="w-full h-full bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <PlusIcon size={16} /> {t('manualAdd', lang)}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="h-px bg-gray-800"></div>
+
+        {/* Global Settings & Export */}
+        <div className="flex justify-between items-center px-1">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowGlobalStyles(!showGlobalStyles)}
+              className={`p-2 rounded hover:bg-gray-700 transition-colors ${showGlobalStyles ? 'text-blue-400 bg-gray-800' : 'text-gray-400'}`}
+              title={t('globalStyles', lang)}
+            >
+              <Palette size={16} />
+            </button>
+            <div className="flex items-center gap-1 bg-gray-800 rounded px-1.5 py-1 border border-gray-700" title={t('concurrency', lang)}>
+              <Zap size={10} className="text-yellow-500" />
+              <input
+                type="number"
+                min="1"
+                value={concurrency}
+                onChange={(e) => setConcurrency(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-8 bg-transparent text-[10px] text-center text-gray-300 outline-none appearance-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-1">
+            <button
+              onClick={onMergeLayers}
+              disabled={!currentImage || isMerging || currentImage.bubbles.length === 0}
+              className="p-2 text-orange-400 hover:bg-gray-800 rounded disabled:opacity-30 transition-colors"
+              title={t('merge', lang)}
+            >
+              {isMerging ? <Loader2 className="animate-spin" size={16} /> : <FileStack size={16} />}
+            </button>
+            <button
+              onClick={() => currentImage && downloadSingleImage(currentImage)}
+              disabled={!currentImage}
+              className="p-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded disabled:opacity-30 transition-colors"
+              title={t('saveImage', lang)}
+            >
+              <ImageIcon size={16} />
+            </button>
+            <button
+              onClick={onZipDownload}
+              disabled={isZipping || images.length === 0}
+              className={`p-2 rounded transition-colors relative ${isZipping ? 'text-blue-400 bg-gray-800 cursor-not-allowed' : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
+              title={t('zipAll', lang)}
+            >
+              {isZipping ? (
+                <div className="flex items-center justify-center">
+                  <Loader2 className="animate-spin absolute" size={16} />
+                  <span className="text-[8px] font-bold absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-[1px]">{zipProgress.current}</span>
+                </div>
+              ) : (
+                <Archive size={16} />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
