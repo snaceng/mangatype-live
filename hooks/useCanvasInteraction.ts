@@ -1,5 +1,4 @@
-
-import { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { ImageState, HandleType, AIConfig, Bubble } from '../types';
 import { createBubble, createMaskRegion, clamp } from '../utils/editorUtils';
 

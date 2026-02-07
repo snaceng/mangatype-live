@@ -1,3 +1,5 @@
+
+
 import React, { useRef, useEffect } from 'react';
 import { Bubble, AIConfig, HandleType } from '../types';
 import { X } from 'lucide-react';
@@ -122,10 +124,13 @@ export const BubbleLayer: React.FC<BubbleLayerProps> = React.memo(({ bubble, isS
       <div 
         className={`absolute inset-0 flex items-center justify-center ${
           bubble.fontFamily === 'zhimang' ? 'font-zhimang' : 
-          bubble.fontFamily === 'mashan' ? 'font-mashan' : 'font-noto'
+          bubble.fontFamily === 'mashan' ? 'font-mashan' : 
+          bubble.fontFamily === 'happy' ? 'font-happy' : 
+          'font-noto'
         } leading-[1.2] overflow-visible text-center`}
         style={{
           fontSize: `${bubble.fontSize * 2}cqw`,
+          fontWeight: 'bold',
           color: bubble.color,
           writingMode: bubble.isVertical ? 'vertical-rl' : 'horizontal-tb',
           whiteSpace: 'pre-wrap',

@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { MousePointer2, MessageSquareDashed, Scan, Square, Sparkles, Layers, RefreshCw, FileJson, ScanText, Palette, Zap, Loader2, FileStack, Image as ImageIcon, Archive, Type, Minus, Plus, ChevronDown, Plus as PlusIcon } from 'lucide-react';
 import { t } from '../services/i18n';
@@ -112,8 +113,9 @@ export const ControlPanel: React.FC = () => {
               <button onClick={() => onGlobalMaskScale(1.1)} disabled={!currentImage || currentImage.bubbles.length === 0} className="flex-1 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs text-gray-200 flex items-center justify-center gap-1"><Plus size={12} /></button>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-1 mt-1">
+          <div className="grid grid-cols-4 gap-1 mt-1">
             <button onClick={() => onGlobalFontFamily('noto')} className="text-[10px] py-1.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-gray-300">Noto</button>
+            <button onClick={() => onGlobalFontFamily('happy')} className="text-[10px] py-1.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-gray-300 font-happy">Cute</button>
             <button onClick={() => onGlobalFontFamily('zhimang')} className="text-[10px] py-1.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-gray-300 font-zhimang">Zhi</button>
             <button onClick={() => onGlobalFontFamily('mashan')} className="text-[10px] py-1.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-gray-300 font-mashan">Ma</button>
           </div>

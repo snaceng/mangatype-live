@@ -25,14 +25,14 @@ const DEFAULT_CONFIG: AIConfig = {
   forceSnapSize: false,
   enableMaskedImageMode: false,
   useMasksAsHints: false,
-  defaultMaskShape: 'ellipse',
+  defaultMaskShape: 'rectangle', // Changed from 'ellipse'
   defaultMaskCornerRadius: 20,
-  defaultMaskFeather: 12,
+  defaultMaskFeather: 0, // Changed from 12
 };
 
 interface ProjectContextType {
   // Project State (from useProjectState)
-  history: { past: ImageState[][]; present: ImageState[]; future: ImageState[][] };
+  history: { past: ImageState[][]; present: ImageState[]; future: ImageState[][]; };
   images: ImageState[];
   currentId: string | null;
   currentImage?: ImageState;

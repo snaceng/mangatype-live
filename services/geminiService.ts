@@ -13,9 +13,10 @@ Your task is to identify speech bubbles, translate them, and provide layout coor
    - Style: Natural, colloquial comic-book style.
    - **Formatting**: Try to match the line breaks of the original text visually. **Do NOT add excessive newlines.** Only break lines where semantically appropriate or necessary for the bubble shape.
 3. **Styling & Font**:
-   - If the visual style or user request implies **cursive, handwritten, or draft** style (e.g., "草书", "handwriting"), set 'fontFamily' to 'zhimang'.
-   - If the style is **calligraphy or brush** (e.g., "毛笔", "brush"), set 'fontFamily' to 'mashan'.
-   - Otherwise, default to 'noto' (Standard Sans).
+   - **'noto' (Standard)**: Default for normal dialogue, narration, and monologues.
+   - **'happy' (Comedy)**: Use for cute, funny, "chibi" style moments, or cheerful exclamations.
+   - **'zhimang' (Wild/Draft)**: Use for messy handwriting, scribbles, despair, or horror.
+   - **'mashan' (Brush)**: Use for loud shouting, martial arts moves, or calligraphy.
 4. **Masking**: Calculate the bounding box (center x, center y, width, height in %) to cover the original text.
    - **Constraint**: The mask must be a **TIGHT FIT**. It should cover the text pixels completely but be as small as possible.
 
@@ -73,8 +74,8 @@ const baseGeminiToolSchema: FunctionDeclaration = {
             isVertical: { type: Type.BOOLEAN, description: 'True for vertical text.' },
             fontFamily: { 
               type: Type.STRING, 
-              description: "Font style. 'noto' (Standard), 'zhimang' (Cursive/Draft), 'mashan' (Brush).",
-              enum: ['noto', 'zhimang', 'mashan']
+              description: "Font style. 'noto' (Dialogue), 'happy' (Comedy), 'zhimang' (Handwriting), 'mashan' (Brush).",
+              enum: ['noto', 'happy', 'zhimang', 'mashan']
             },
             // Rotation will be injected here if enabled
           },
@@ -105,8 +106,8 @@ const baseOpenAIToolSchema = {
             isVertical: { type: 'boolean', description: 'True for vertical text.' },
             fontFamily: { 
               type: 'string', 
-              enum: ['noto', 'zhimang', 'mashan'],
-              description: "Font style. 'noto' (Standard), 'zhimang' (Cursive/Draft), 'mashan' (Brush)." 
+              enum: ['noto', 'happy', 'zhimang', 'mashan'],
+              description: "Font style. 'noto' (Dialogue), 'happy' (Comedy), 'zhimang' (Handwriting), 'mashan' (Brush)." 
             }
             // Rotation will be injected here if enabled
           },

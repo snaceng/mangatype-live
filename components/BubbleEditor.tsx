@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { FONTS } from '../types';
 import { Trash2, Type, AlignVerticalJustifyCenter, AlignHorizontalJustifyCenter, Sparkles, RotateCw, Maximize2, Palette, Minus, Plus, Pipette, Hash, Ban, Square, Circle, Box } from 'lucide-react';
@@ -408,7 +409,9 @@ export const BubbleEditor: React.FC = () => {
                 <span className="text-xs opacity-70 font-sans">{font.name.split('(')[0]}</span>
                 <span className={`text-lg leading-none ${
                   font.id === 'zhimang' ? 'font-zhimang' : 
-                  font.id === 'mashan' ? 'font-mashan' : 'font-noto'
+                  font.id === 'mashan' ? 'font-mashan' : 
+                  font.id === 'happy' ? 'font-happy' : 
+                  'font-noto'
                 }`}>
                   {font.preview}
                 </span>

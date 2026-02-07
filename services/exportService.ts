@@ -1,3 +1,5 @@
+
+
 import { ImageState, Bubble, MaskRegion } from '../types';
 import JSZip from 'jszip';
 
@@ -278,6 +280,7 @@ export const compositeImage = async (imageState: ImageState): Promise<Blob | nul
                 writing-mode: ${b.isVertical ? 'vertical-rl' : 'horizontal-tb'};
                 font-family: ${fontStack};
                 font-size: ${fontSize}px;
+                font-weight: bold;
                 color: ${b.color};
                 line-height: 1.5;
                 text-align: ${b.isVertical ? 'left' : 'center'};

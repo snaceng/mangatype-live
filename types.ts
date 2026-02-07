@@ -8,7 +8,7 @@ export interface Bubble {
   height: number; // Height percentage relative to image height
   text: string;
   isVertical: boolean;
-  fontFamily: 'noto' | 'zhimang' | 'mashan';
+  fontFamily: 'noto' | 'happy' | 'zhimang' | 'mashan';
   fontSize: number; // rem
   color: string;
   backgroundColor: string; // For masking original text (e.g., #ffffff)
@@ -38,7 +38,7 @@ export interface DetectedBubble {
   height: number;
   isVertical: boolean;
   rotation?: number; // Added rotation support from AI
-  fontFamily?: 'noto' | 'zhimang' | 'mashan'; // Added font support from AI
+  fontFamily?: 'noto' | 'happy' | 'zhimang' | 'mashan'; // Added font support from AI
 }
 
 export interface ImageState {
@@ -68,9 +68,10 @@ export type FontOption = {
 };
 
 export const FONTS: FontOption[] = [
-  { id: 'noto', name: 'Noto Sans (Standard)', preview: '黑体' },
-  { id: 'zhimang', name: 'Zhi Mang Xing (Draft)', preview: '草书风格' },
-  { id: 'mashan', name: 'Ma Shan Zheng (Brush)', preview: '毛笔楷体' },
+  { id: 'noto', name: 'Noto Sans (Standard)', preview: '黑体对话' },
+  { id: 'happy', name: 'ZCOOL KuaiLe (Comedy)', preview: '快乐Q版' },
+  { id: 'zhimang', name: 'Zhi Mang Xing (Draft)', preview: '狂草手写' },
+  { id: 'mashan', name: 'Ma Shan Zheng (Brush)', preview: '毛笔招式' },
 ];
 
 export type AIProvider = 'gemini' | 'openai';
